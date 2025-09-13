@@ -2,23 +2,18 @@ package httptransport
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
+	createorder "github.com/corray333/backend-labs/order/internal/transport/http/create_order"
+	listorders "github.com/corray333/backend-labs/order/internal/transport/http/list_orders"
 	"github.com/corray333/backend-labs/order/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/gorilla/schema"
 	"github.com/spf13/viper"
-)
-
-const (
-	// Version is the version of the HTTPTransport.
-	Version = "1.0.0"
 )
 
 type service interface {
@@ -55,63 +50,11 @@ func (h *HTTPTransport) RegisterRoutes() {
 }
 
 func (h *HTTPTransport) batchInsert(w http.ResponseWriter, r *http.Request) {
-	var orders []order.Order
-	if err := json.NewDecoder(r.Body).Decode(&orders); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		slog.Error("Error decoding request body for batch insert", "error", err)
-		return
-	}
-
-	insertedOrders, err := h.service.BatchInsert(r.Context(), orders)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		slog.Error("Error performing batch insert", "error", err)
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(insertedOrders); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		slog.Error("Error sending response for batch insert", "error", err)
-	}
-}
-
-type queryOrdersRequest struct {
-	Ids         []int64 `schema:"ids,omitempty"`
-	CustomerIds []int64 `schema:"customerIds,omitempty"`
-	Limit       int     `schema:"limit,omitempty"`
-	Offset      int     `schema:"offset,omitempty"`
-}
-
-func (q *queryOrdersRequest) ToModel() orderitem.QueryOrderItemsModel {
-	return orderitem.QueryOrderItemsModel{
-		Ids:         q.Ids,
-		CustomerIds: q.CustomerIds,
-		Limit:       q.Limit,
-		Offset:      q.Offset,
-	}
+	createorder.BatchInsert(w, r, h.service)
 }
 
 func (h *HTTPTransport) getOrders(w http.ResponseWriter, r *http.Request) {
-	decoder := schema.NewDecoder()
-	query := &queryOrdersRequest{}
-	err := decoder.Decode(query, r.URL.Query())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		slog.Error("Error decoding request", "error", err)
-		return
-	}
-
-	orders, err := h.service.GetOrders(r.Context(), query.ToModel())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		slog.Error("Error getting orders", "error", err)
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(orders); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		slog.Error("Error sending response", "error", err)
-	}
+	listorders.ListOrders(w, r, h.service)
 }
 
 func newRouter() *chi.Mux {
