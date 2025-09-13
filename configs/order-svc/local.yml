@@ -1,0 +1,24 @@
+postgres:
+  migrations_path: "./migrations"
+
+server:
+  http:
+    port: 3001
+    cors:
+      allowed_origins:
+        - "*"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "OPTIONS"
+      allowed_headers:
+        - "Accept"
+        - "Authorization"
+        - "Content-Type"
+        - "Set-Cookie"
+        - "Refresh"
+        - "X-CSRF-Token"
+      allow_credentials: true
+      max_age: 300

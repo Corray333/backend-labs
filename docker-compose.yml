@@ -1,0 +1,37 @@
+services:
+  order-pg:
+    image: postgres
+    environment:
+      POSTGRES_DB: ${ORDER_PG_DB}
+      POSTGRES_USER: ${ORDER_PG_USER}
+      POSTGRES_PASSWORD: ${ORDER_PG_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: --auth=md5
+    volumes:
+      - order-pgdata:/var/lib/postgresql/data/
+  order-pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      - DB_HOST=${ORDER_PG_HOST}
+      - DB_PORT=${ORDER_PG_PORT}
+      - DB_USER=${ORDER_PG_USER}
+      - DB_PASSWORD=${ORDER_PG_PASSWORD}
+      - DB_NAME=${ORDER_PG_DB}
+      - ADMIN_USERS=postgres,admin
+    depends_on:
+      - order-pg
+
+  order-svc:
+    build: 
+      context: ./order-svc
+      dockerfile: Dockerfile
+    ports:
+      - 3001:3001
+    volumes:
+      - .env:/app/.env
+      - ./configs/order-svc/local.yml:/etc/order-svc/config.yml
+    depends_on:
+      - order-pgbouncer
+  
+volumes:
+  order-pgdata:
