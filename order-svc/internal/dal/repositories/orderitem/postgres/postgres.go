@@ -3,6 +3,7 @@ package postgresrepo
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// OrderItemDal represents order item data access layer model
+// OrderItemDal represents order item data access layer model.
 type OrderItemDal struct {
 	Id            int64     `db:"id"`
 	OrderId       int64     `db:"order_id"`
@@ -26,13 +27,13 @@ type OrderItemDal struct {
 	UpdatedAt     time.Time `db:"updated_at"`
 }
 
-// ToModel converts OrderItemDal to service layer OrderItem model
+// ToModel converts OrderItemDal to service layer OrderItem model.
 func (oi *OrderItemDal) ToModel() *orderitem.OrderItem {
-
 	cur, err := currency.ParseCurrency(oi.PriceCurrency)
 	if err != nil {
 		return nil
 	}
+
 	return &orderitem.OrderItem{
 		ID:            oi.Id,
 		OrderID:       oi.OrderId,
@@ -47,7 +48,7 @@ func (oi *OrderItemDal) ToModel() *orderitem.OrderItem {
 	}
 }
 
-// OrderItemDalFromModel converts service layer OrderItem model to OrderItemDal
+// OrderItemDalFromModel converts service layer OrderItem model to OrderItemDal.
 func OrderItemDalFromModel(oi *orderitem.OrderItem) *OrderItemDal {
 	return &OrderItemDal{
 		Id:            oi.ID,
@@ -73,8 +74,11 @@ func NewPostgresOrderItemRepository(pgClient sqlx.ExtContext) *PostgresOrderItem
 	}
 }
 
-// BulkInsert inserts multiple order items and returns the inserted order items with IDs
-func (r *PostgresOrderItemRepository) BulkInsert(ctx context.Context, orderItems []orderitem.OrderItem) ([]orderitem.OrderItem, error) {
+// BulkInsert inserts multiple order items and returns the inserted order items with IDs.
+func (r *PostgresOrderItemRepository) BulkInsert(
+	ctx context.Context,
+	orderItems []orderitem.OrderItem,
+) ([]orderitem.OrderItem, error) {
 	if len(orderItems) == 0 {
 		return []orderitem.OrderItem{}, nil
 	}
@@ -152,7 +156,11 @@ func (r *PostgresOrderItemRepository) BulkInsert(ctx context.Context, orderItems
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk insert order items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var result []orderitem.OrderItem
 	for rows.Next() {
@@ -182,8 +190,11 @@ func (r *PostgresOrderItemRepository) BulkInsert(ctx context.Context, orderItems
 	return result, nil
 }
 
-// Query retrieves order items based on filter criteria
-func (r *PostgresOrderItemRepository) Query(ctx context.Context, filter *orderitem.QueryOrderItemsModel) ([]orderitem.OrderItem, error) {
+// Query retrieves order items based on filter criteria.
+func (r *PostgresOrderItemRepository) Query(
+	ctx context.Context,
+	filter *orderitem.QueryOrderItemsModel,
+) ([]orderitem.OrderItem, error) {
 	sqlBuilder := strings.Builder{}
 	sqlBuilder.WriteString(`
 		SELECT
@@ -241,7 +252,11 @@ func (r *PostgresOrderItemRepository) Query(ctx context.Context, filter *orderit
 	if err != nil {
 		return nil, fmt.Errorf("failed to query order items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var result []orderitem.OrderItem
 	for rows.Next() {

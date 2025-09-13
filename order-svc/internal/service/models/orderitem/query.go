@@ -1,6 +1,6 @@
 package orderitem
 
-// QueryOrderItemsModel represents filter parameters for querying order items
+// QueryOrderItemsModel represents filter parameters for querying order items.
 type QueryOrderItemsModel struct {
 	Ids               []int64 `json:"ids,omitempty"`
 	OrderIds          []int64 `json:"orderIds,omitempty"`

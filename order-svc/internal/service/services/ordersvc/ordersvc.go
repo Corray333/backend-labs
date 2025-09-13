@@ -16,7 +16,7 @@ type OrderService struct {
 	pgClient *postgres.PostgresClient
 }
 
-func (s *OrderService) newUOW(ctx context.Context) unitOfWork {
+func (s *OrderService) newUOW() unitOfWork {
 	return uow.NewUnitOfWork(s.pgClient)
 }
 
@@ -36,6 +36,7 @@ func MustNewOrderService(opts ...option) *OrderService {
 	for _, opt := range opts {
 		opt(s)
 	}
+
 	return s
 }
 
@@ -45,11 +46,14 @@ func WithPostgresClient(pgClient *postgres.PostgresClient) option {
 	}
 }
 
-// BatchInsert creates multiple orders with their items in a transaction
-func (s *OrderService) BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error) {
+// BatchInsert creates multiple orders with their items in a transaction.
+func (s *OrderService) BatchInsert(
+	ctx context.Context,
+	orders []order.Order,
+) ([]order.Order, error) {
 	now := time.Now()
 
-	uow := s.newUOW(ctx)
+	uow := s.newUOW()
 
 	err := uow.Begin(ctx)
 	if err != nil {
@@ -89,8 +93,11 @@ func (s *OrderService) BatchInsert(ctx context.Context, orders []order.Order) ([
 	return orders, nil
 }
 
-// GetOrders retrieves orders with optional order items based on filter
-func (s *OrderService) GetOrders(ctx context.Context, model orderitem.QueryOrderItemsModel) ([]order.Order, error) {
+// GetOrders retrieves orders with optional order items based on filter.
+func (s *OrderService) GetOrders(
+	ctx context.Context,
+	model orderitem.QueryOrderItemsModel,
+) ([]order.Order, error) {
 	orderQuery := &order.QueryOrdersModel{
 		Ids:         model.Ids,
 		CustomerIds: model.CustomerIds,
@@ -98,7 +105,7 @@ func (s *OrderService) GetOrders(ctx context.Context, model orderitem.QueryOrder
 		Offset:      (model.Page - 1) * model.PageSize,
 	}
 
-	uow := s.newUOW(ctx)
+	uow := s.newUOW()
 
 	orders, err := uow.OrderRepository().Query(ctx, orderQuery)
 	if err != nil {

@@ -2,7 +2,7 @@ package currency
 
 import (
 	"database/sql/driver"
-	"fmt"
+	"errors"
 )
 
 type Currency string
@@ -10,6 +10,8 @@ type Currency string
 const (
 	CurrencyRUB Currency = "RUB"
 )
+
+var ErrInvalidCurrency = errors.New("invalid currency")
 
 func (c Currency) String() string {
 	return string(c)
@@ -24,6 +26,6 @@ func ParseCurrency(s string) (Currency, error) {
 	case CurrencyRUB.String():
 		return CurrencyRUB, nil
 	default:
-		return "", fmt.Errorf("unknown currency: %s", s)
+		return "", ErrInvalidCurrency
 	}
 }

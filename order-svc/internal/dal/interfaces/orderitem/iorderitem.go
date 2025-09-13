@@ -8,5 +8,8 @@ import (
 
 type IOrderItemPostgresRepository interface {
 	BulkInsert(ctx context.Context, orderItems []orderitem.OrderItem) ([]orderitem.OrderItem, error)
-	Query(ctx context.Context, filter *orderitem.QueryOrderItemsModel) ([]orderitem.OrderItem, error)
+	Query(
+		ctx context.Context,
+		filter *orderitem.QueryOrderItemsModel,
+	) ([]orderitem.OrderItem, error)
 }

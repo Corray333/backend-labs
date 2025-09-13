@@ -18,51 +18,52 @@ type service interface {
 }
 
 type itemInCreateOrderRequest struct {
-	ProductID     int64  `json:"productId" validate:"gt=0"`
-	Quantity      int    `json:"quantity" validate:"gt=0"`
-	ProductTitle  string `json:"productTitle" validate:"required"`
+	ProductID     int64  `json:"productId"     validate:"gt=0"`
+	Quantity      int    `json:"quantity"      validate:"gt=0"`
+	ProductTitle  string `json:"productTitle"  validate:"required"`
 	ProductUrl    string `json:"productUrl"`
-	PriceCents    int64  `json:"priceCents" validate:"gt=0"`
+	PriceCents    int64  `json:"priceCents"    validate:"gt=0"`
 	PriceCurrency string `json:"priceCurrency" validate:"required"`
 }
 
-func (r *itemInCreateOrderRequest) toModel() *orderitem.OrderItem {
+func (r *itemInCreateOrderRequest) toModel() (*orderitem.OrderItem, error) {
 	cur, err := currency.ParseCurrency(r.PriceCurrency)
 	if err != nil {
-		return nil
+		return nil, err
 	}
+
 	return &orderitem.OrderItem{
 		ProductID:     r.ProductID,
 		ProductUrl:    r.ProductUrl,
 		PriceCents:    r.PriceCents,
 		PriceCurrency: cur,
-	}
+	}, nil
 }
 
 type orderInCreateOrderRequest struct {
-	CustomerID         int64                      `json:"customerID" validate:"gt=0"`
-	DeliveryAddress    string                     `json:"deliveryAddress" validate:"required"`
-	TotalPriceCents    int64                      `json:"totalPriceCents" validate:"gt=0"`
+	CustomerID         int64                      `json:"customerId"         validate:"gt=0"`
+	DeliveryAddress    string                     `json:"deliveryAddress"    validate:"required"`
+	TotalPriceCents    int64                      `json:"totalPriceCents"    validate:"gt=0"`
 	TotalPriceCurrency string                     `json:"totalPriceCurrency" validate:"required"`
 	CreatedAt          time.Time                  `json:"createdAt"`
 	UpdatedAt          time.Time                  `json:"updatedAt"`
-	OrderItems         []itemInCreateOrderRequest `json:"orderItems" validate:"required,min=1,dive"`
+	OrderItems         []itemInCreateOrderRequest `json:"orderItems"         validate:"required,min=1,dive"`
 }
 
-func (r *orderInCreateOrderRequest) toModel() *order.Order {
+func (r *orderInCreateOrderRequest) toModel() (*order.Order, error) {
 	cur, err := currency.ParseCurrency(r.TotalPriceCurrency)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	items := make([]orderitem.OrderItem, len(r.OrderItems))
-	for i, item := range r.OrderItems {
-		items[i] = orderitem.OrderItem{
-			ProductID:     item.ProductID,
-			ProductUrl:    item.ProductUrl,
-			PriceCents:    item.PriceCents,
-			PriceCurrency: cur,
+	for i := range r.OrderItems {
+		item, err := r.OrderItems[i].toModel()
+		if err != nil {
+			return nil, err
 		}
+		items[i] = *item
 	}
+
 	return &order.Order{
 		CustomerID:         r.CustomerID,
 		DeliveryAddress:    r.DeliveryAddress,
@@ -71,7 +72,7 @@ func (r *orderInCreateOrderRequest) toModel() *order.Order {
 		CreatedAt:          r.CreatedAt,
 		UpdatedAt:          r.UpdatedAt,
 		OrderItems:         items,
-	}
+	}, nil
 }
 
 type createOrderRequest struct {
@@ -87,24 +88,34 @@ func BatchInsert(w http.ResponseWriter, r *http.Request, service service) {
 	if err := json.NewDecoder(r.Body).Decode(&ordersReq); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		slog.Error("Error decoding request body for batch insert", "error", err)
+
 		return
 	}
 
 	if err := ordersReq.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		slog.Error("Error validating request body for batch insert", "error", err)
+
 		return
 	}
 
 	orders := make([]order.Order, len(ordersReq.Orders))
 	for i, req := range ordersReq.Orders {
-		orders[i] = *req.toModel()
+		order, err := req.toModel()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			slog.Error("Error converting order request to model", "error", err)
+
+			return
+		}
+		orders[i] = *order
 	}
 
 	insertedOrders, err := service.BatchInsert(r.Context(), orders)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		slog.Error("Error performing batch insert", "error", err)
+
 		return
 	}
 

@@ -38,6 +38,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request, service service) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		slog.Error("Error decoding request", "error", err)
+
 		return
 	}
 
@@ -45,6 +46,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request, service service) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		slog.Error("Error getting orders", "error", err)
+
 		return
 	}
 

@@ -8,7 +8,6 @@ import (
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	orderrepo "github.com/corray333/backend-labs/order/internal/dal/repositories/order/postgres"
 	orderitemrepo "github.com/corray333/backend-labs/order/internal/dal/repositories/orderitem/postgres"
-
 	"github.com/jmoiron/sqlx"
 )
 
@@ -53,6 +52,7 @@ func (u *unitOfWork) Commit() error {
 	if u.tx == nil {
 		return nil
 	}
+
 	return u.tx.Commit()
 }
 
@@ -60,5 +60,6 @@ func (u *unitOfWork) Rollback() error {
 	if u.tx == nil {
 		return nil
 	}
+
 	return u.tx.Rollback()
 }

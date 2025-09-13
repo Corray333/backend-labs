@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// OrderDal represents order data access layer model
+// OrderDal represents order data access layer model.
 type OrderDal struct {
 	Id                 int64     `db:"id"`
 	CustomerId         int64     `db:"customer_id"`
@@ -25,12 +26,13 @@ type OrderDal struct {
 	UpdatedAt          time.Time `db:"updated_at"`
 }
 
-// ToModel converts OrderDal to service layer Order model
+// ToModel converts OrderDal to service layer Order model.
 func (o *OrderDal) ToModel() (*order.Order, error) {
 	cur, err := currency.ParseCurrency(o.TotalPriceCurrency)
 	if err != nil {
 		return nil, err
 	}
+
 	return &order.Order{
 		ID:                 o.Id,
 		CustomerID:         o.CustomerId,
@@ -43,7 +45,7 @@ func (o *OrderDal) ToModel() (*order.Order, error) {
 	}, nil
 }
 
-// FromModel converts service layer Order model to OrderDal
+// FromModel converts service layer Order model to OrderDal.
 func OrderDalFromModel(o *order.Order) *OrderDal {
 	return &OrderDal{
 		Id:                 o.ID,
@@ -56,16 +58,16 @@ func OrderDalFromModel(o *order.Order) *OrderDal {
 	}
 }
 
-// OrderArray is a custom type for PostgreSQL array handling
+// OrderArray is a custom type for PostgreSQL array handling.
 type OrderArray []*OrderDal
 
-// Value implements driver.Valuer interface for PostgreSQL array
+// Value implements driver.Valuer interface for PostgreSQL array.
 func (a OrderArray) Value() (driver.Value, error) {
 	if len(a) == 0 {
 		return nil, nil
 	}
 
-	var values []string
+	values := make([]string, 0, len(a))
 	for _, order := range a {
 		values = append(values, fmt.Sprintf("(%d,'%s',%d,'%s','%s','%s')",
 			order.CustomerId,
@@ -89,8 +91,11 @@ func NewPostgresOrderRepository(pgClient sqlx.ExtContext) *PostgresOrderReposito
 	}
 }
 
-// BulkInsert inserts multiple orders and returns the inserted orders with IDs
-func (r *PostgresOrderRepository) BulkInsert(ctx context.Context, orders []order.Order) ([]order.Order, error) {
+// BulkInsert inserts multiple orders and returns the inserted orders with IDs.
+func (r *PostgresOrderRepository) BulkInsert(
+	ctx context.Context,
+	orders []order.Order,
+) ([]order.Order, error) {
 	if len(orders) == 0 {
 		return []order.Order{}, nil
 	}
@@ -149,7 +154,11 @@ func (r *PostgresOrderRepository) BulkInsert(ctx context.Context, orders []order
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk insert orders: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var result []order.Order
 	i := 0
@@ -185,8 +194,11 @@ func (r *PostgresOrderRepository) BulkInsert(ctx context.Context, orders []order
 	return result, nil
 }
 
-// Query retrieves orders based on filter criteria
-func (r *PostgresOrderRepository) Query(ctx context.Context, filter *order.QueryOrdersModel) ([]order.Order, error) {
+// Query retrieves orders based on filter criteria.
+func (r *PostgresOrderRepository) Query(
+	ctx context.Context,
+	filter *order.QueryOrdersModel,
+) ([]order.Order, error) {
 	sqlBuilder := strings.Builder{}
 	sqlBuilder.WriteString(`
 		SELECT
@@ -231,13 +243,15 @@ func (r *PostgresOrderRepository) Query(ctx context.Context, filter *order.Query
 		args = append(args, filter.Offset)
 	}
 
-	fmt.Println(sqlBuilder.String())
-
 	rows, err := r.conn.QueryContext(ctx, sqlBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query orders: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var result []order.Order
 	for rows.Next() {

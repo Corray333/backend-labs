@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
@@ -30,6 +31,7 @@ type HTTPTransport struct {
 func NewHTTPTransport(service service) *HTTPTransport {
 	router := newRouter()
 	server := newServer(router)
+
 	return &HTTPTransport{
 		server:  server,
 		router:  router,
@@ -83,9 +85,20 @@ func newRouter() *chi.Mux {
 	return router
 }
 
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 120 * time.Second
+)
+
 func newServer(router http.Handler) *http.Server {
 	return &http.Server{
-		Addr:    "0.0.0.0:" + viper.GetString("server.http.port"),
-		Handler: router,
+		Addr:              "0.0.0.0:" + viper.GetString("server.http.port"),
+		Handler:           router,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 }

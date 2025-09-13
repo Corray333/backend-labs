@@ -20,9 +20,11 @@ services:
       - ADMIN_USERS=postgres,admin
     depends_on:
       - order-pg
+    ports:
+      - 5432:5432
 
   order-svc:
-    build: 
+    build:
       context: ./order-svc
       dockerfile: Dockerfile
     ports:
@@ -32,6 +34,6 @@ services:
       - ./configs/order-svc/local.yml:/etc/order-svc/config.yml
     depends_on:
       - order-pgbouncer
-  
+
 volumes:
   order-pgdata:

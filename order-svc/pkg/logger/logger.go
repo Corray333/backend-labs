@@ -62,8 +62,9 @@ const (
 	timeFormat = "[2006-01-02 15:04:05.000]"
 )
 
-func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
+const loggerFuncStackLevel = 3
 
+func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	level := r.Level.String() + ":"
 
 	attrs, err := h.computeAttrs(ctx, r)
@@ -73,7 +74,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 
 	if r.Level == slog.LevelError {
 		// Skip three levels of slog functions calls
-		_, file, line, ok := runtime.Caller(3)
+		_, file, line, ok := runtime.Caller(loggerFuncStackLevel)
 		if !ok {
 			file = "unknown"
 			line = 0
@@ -99,6 +100,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		level = colorize(lightRed, level)
 	}
 
+	//nolint:forbidigo // intentional use of fmt.Println for logger output
 	fmt.Println(
 		colorize(lightGray, r.Time.Format(timeFormat)),
 		level,
@@ -121,6 +123,7 @@ func suppressDefaults(
 		if next == nil {
 			return a
 		}
+
 		return next(groups, a)
 	}
 }
@@ -157,6 +160,7 @@ func (h *Handler) computeAttrs(ctx context.Context, r slog.Record) (map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("error when unmarshaling inner handler's Handle result: %w", err)
 	}
+
 	return attrs, nil
 }
 
@@ -202,6 +206,7 @@ func NewLoggerMiddleware(log *slog.Logger) func(next http.Handler) http.Handler 
 			}()
 			next.ServeHTTP(ww, r)
 		}
+
 		return http.HandlerFunc(fn)
 	}
 }

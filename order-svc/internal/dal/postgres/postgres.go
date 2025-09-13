@@ -19,7 +19,13 @@ func (p *PostgresClient) DB() *sqlx.DB {
 }
 
 func MustNewClient() *PostgresClient {
-	connStr := fmt.Sprintf("host=%s port=5432 user=%s password=%s dbname=%s sslmode=disable", os.Getenv("ORDER_PGBOUNCER_HOST"), os.Getenv("ORDER_PG_USER"), os.Getenv("ORDER_PG_PASSWORD"), os.Getenv("ORDER_PG_DB"))
+	connStr := fmt.Sprintf(
+		"host=%s port=5432 user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("ORDER_PGBOUNCER_HOST"),
+		os.Getenv("ORDER_PG_USER"),
+		os.Getenv("ORDER_PG_PASSWORD"),
+		os.Getenv("ORDER_PG_DB"),
+	)
 	db, err := sqlx.Open("postgres", connStr)
 	if err != nil {
 		panic(err)
@@ -31,14 +37,6 @@ func MustNewClient() *PostgresClient {
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		panic(err)
-	}
-
-	files, err := os.ReadDir(viper.GetString("postgres.migrations_path"))
-	if err != nil {
-		panic(err)
-	}
-	for _, file := range files {
-		fmt.Println(file.Name())
 	}
 
 	if err := goose.Up(db.DB, viper.GetString("postgres.migrations_path")); err != nil {
