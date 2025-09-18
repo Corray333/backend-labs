@@ -14,7 +14,7 @@ import (
 
 // OrderService is a service for managing orders.
 type OrderService struct {
-	pgClient *postgres.PostgresClient
+	pgClient *postgres.Client
 }
 
 func (s *OrderService) newUOW() unitOfWork {
@@ -26,8 +26,8 @@ type unitOfWork interface {
 	Commit() error
 	Rollback() error
 
-	OrderRepository() iorder.IOrderPostgresRepository
-	OrderItemRepository() iorderitem.IOrderItemPostgresRepository
+	OrderRepository() iorder.PostgresRepository
+	OrderItemRepository() iorderitem.PostgresRepository
 }
 
 // option is a function that configures the OrderService.
@@ -46,7 +46,7 @@ func MustNewOrderService(opts ...option) *OrderService {
 // WithPostgresClient sets the Postgres client for the OrderService.
 //
 //goland:noinspection GoExportedFuncWithUnexportedType
-func WithPostgresClient(pgClient *postgres.PostgresClient) option {
+func WithPostgresClient(pgClient *postgres.Client) option {
 	return func(s *OrderService) {
 		s.pgClient = pgClient
 	}

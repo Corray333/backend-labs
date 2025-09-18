@@ -11,10 +11,12 @@ import (
 	"github.com/gorilla/schema"
 )
 
+// service is an interface for the service layer.
 type service interface {
 	GetOrders(ctx context.Context, model orderitem.QueryOrderItemsModel) ([]order.Order, error)
 }
 
+// queryOrdersRequest represents the request for getting orders.
 type queryOrdersRequest struct {
 	Ids         []int64 `schema:"ids,omitempty"`
 	CustomerIds []int64 `schema:"customerIds,omitempty"`
@@ -22,6 +24,7 @@ type queryOrdersRequest struct {
 	Offset      int     `schema:"offset,omitempty"`
 }
 
+// ToModel converts queryOrdersRequest to orderitem.QueryOrderItemsModel.
 func (q *queryOrdersRequest) ToModel() orderitem.QueryOrderItemsModel {
 	return orderitem.QueryOrderItemsModel{
 		Ids:         q.Ids,
@@ -31,6 +34,7 @@ func (q *queryOrdersRequest) ToModel() orderitem.QueryOrderItemsModel {
 	}
 }
 
+// ListOrders handles the get orders request.
 func ListOrders(w http.ResponseWriter, r *http.Request, service service) {
 	decoder := schema.NewDecoder()
 	query := &queryOrdersRequest{}

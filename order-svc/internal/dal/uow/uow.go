@@ -14,24 +14,24 @@ import (
 type unitOfWork struct {
 	db            *sqlx.DB
 	tx            *sqlx.Tx
-	orderRepo     iorder.IOrderPostgresRepository
-	orderItemRepo iorderitem.IOrderItemPostgresRepository
+	orderRepo     iorder.PostgresRepository
+	orderItemRepo iorderitem.PostgresRepository
 }
 
 // OrderRepository returns order repository.
-func (u *unitOfWork) OrderRepository() iorder.IOrderPostgresRepository {
+func (u *unitOfWork) OrderRepository() iorder.PostgresRepository {
 	return u.orderRepo
 }
 
 // OrderItemRepository returns order item repository.
-func (u *unitOfWork) OrderItemRepository() iorderitem.IOrderItemPostgresRepository {
+func (u *unitOfWork) OrderItemRepository() iorderitem.PostgresRepository {
 	return u.orderItemRepo
 }
 
 // NewUnitOfWork creates new unit of work.
 //
 //goland:noinspection GoExportedFuncWithUnexportedType
-func NewUnitOfWork(db *postgres.PostgresClient) *unitOfWork {
+func NewUnitOfWork(db *postgres.Client) *unitOfWork {
 	return &unitOfWork{
 		db:            db.DB(),
 		orderRepo:     orderrepo.NewPostgresOrderRepository(db.DB()),

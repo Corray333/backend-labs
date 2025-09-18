@@ -64,10 +64,12 @@ func OrderItemDalFromModel(oi *orderitem.OrderItem) *OrderItemDal {
 	}
 }
 
+// PostgresOrderItemRepository represents a Postgres order item repository.
 type PostgresOrderItemRepository struct {
 	conn sqlx.ExtContext
 }
 
+// NewPostgresOrderItemRepository creates a new Postgres order item repository.
 func NewPostgresOrderItemRepository(pgClient sqlx.ExtContext) *PostgresOrderItemRepository {
 	return &PostgresOrderItemRepository{
 		conn: pgClient,

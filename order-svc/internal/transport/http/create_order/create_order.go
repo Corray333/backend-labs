@@ -13,10 +13,12 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+// service is an interface for the service layer.
 type service interface {
 	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
 }
 
+// itemInCreateOrderRequest represents an item in a create order request.
 type itemInCreateOrderRequest struct {
 	ProductID     int64  `json:"productId"     validate:"gt=0"`
 	Quantity      int    `json:"quantity"      validate:"gt=0"`
@@ -26,6 +28,7 @@ type itemInCreateOrderRequest struct {
 	PriceCurrency string `json:"priceCurrency" validate:"required"`
 }
 
+// toModel converts itemInCreateOrderRequest to orderitem.OrderItem.
 func (r *itemInCreateOrderRequest) toModel() (*orderitem.OrderItem, error) {
 	cur, err := currency.ParseCurrency(r.PriceCurrency)
 	if err != nil {
@@ -40,6 +43,7 @@ func (r *itemInCreateOrderRequest) toModel() (*orderitem.OrderItem, error) {
 	}, nil
 }
 
+// orderInCreateOrderRequest represents an order in a create order request.
 type orderInCreateOrderRequest struct {
 	CustomerID         int64                      `json:"customerId"         validate:"gt=0"`
 	DeliveryAddress    string                     `json:"deliveryAddress"    validate:"required"`
@@ -50,6 +54,7 @@ type orderInCreateOrderRequest struct {
 	OrderItems         []itemInCreateOrderRequest `json:"orderItems"         validate:"required,min=1,dive"`
 }
 
+// toModel converts orderInCreateOrderRequest to order.Order.
 func (r *orderInCreateOrderRequest) toModel() (*order.Order, error) {
 	cur, err := currency.ParseCurrency(r.TotalPriceCurrency)
 	if err != nil {
@@ -75,14 +80,17 @@ func (r *orderInCreateOrderRequest) toModel() (*order.Order, error) {
 	}, nil
 }
 
+// createOrderRequest represents a create order request.
 type createOrderRequest struct {
 	Orders []orderInCreateOrderRequest `json:"orders" validate:"required,min=1,dive"`
 }
 
+// Validate validates the create order request.
 func (r *createOrderRequest) Validate() error {
 	return validator.New().Struct(r)
 }
 
+// BatchInsert handles the batch insert request.
 func BatchInsert(w http.ResponseWriter, r *http.Request, service service) {
 	ordersReq := createOrderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&ordersReq); err != nil {
@@ -101,14 +109,14 @@ func BatchInsert(w http.ResponseWriter, r *http.Request, service service) {
 
 	orders := make([]order.Order, len(ordersReq.Orders))
 	for i, req := range ordersReq.Orders {
-		order, err := req.toModel()
+		model, err := req.toModel()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			slog.Error("Error converting order request to model", "error", err)
+			slog.Error("Error converting model request to model", "error", err)
 
 			return
 		}
-		orders[i] = *order
+		orders[i] = *model
 	}
 
 	insertedOrders, err := service.BatchInsert(r.Context(), orders)

@@ -10,15 +10,23 @@ import (
 	"github.com/spf13/viper"
 )
 
-type PostgresClient struct {
+// Client represents a Postgres client.
+type Client struct {
 	db *sqlx.DB
 }
 
-func (p *PostgresClient) DB() *sqlx.DB {
+// DB returns the underlying database connection.
+func (p *Client) DB() *sqlx.DB {
 	return p.db
 }
 
-func MustNewClient() *PostgresClient {
+// Close closes the database connection for graceful shutdown.
+func (p *Client) Close() error {
+	return p.db.Close()
+}
+
+// MustNewClient creates a new Postgres client.
+func MustNewClient() *Client {
 	connStr := fmt.Sprintf(
 		"host=%s port=5432 user=%s password=%s dbname=%s sslmode=disable",
 		os.Getenv("ORDER_PGBOUNCER_HOST"),
@@ -43,7 +51,7 @@ func MustNewClient() *PostgresClient {
 		panic(err)
 	}
 
-	return &PostgresClient{
+	return &Client{
 		db: db,
 	}
 }

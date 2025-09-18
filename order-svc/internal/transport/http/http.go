@@ -17,17 +17,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+// service is an interface for the service layer.
 type service interface {
 	GetOrders(ctx context.Context, model orderitem.QueryOrderItemsModel) ([]order.Order, error)
 	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
 }
 
+// HTTPTransport represents the HTTP transport layer.
 type HTTPTransport struct {
 	server  *http.Server
 	router  *chi.Mux
 	service service
 }
 
+// NewHTTPTransport creates a new HTTPTransport.
 func NewHTTPTransport(service service) *HTTPTransport {
 	router := newRouter()
 	server := newServer(router)
@@ -39,9 +42,17 @@ func NewHTTPTransport(service service) *HTTPTransport {
 	}
 }
 
+// Run starts the HTTP server.
 func (h *HTTPTransport) Run() error {
 	return h.server.ListenAndServe()
 }
+
+// Shutdown gracefully shuts down the HTTP server.
+func (h *HTTPTransport) Shutdown(ctx context.Context) error {
+	return h.server.Shutdown(ctx)
+}
+
+// RegisterRoutes registers the routes for the HTTPTransport.
 
 // RegisterRoutes registers the routes for the HTTPTransport.
 func (h *HTTPTransport) RegisterRoutes() {
@@ -51,14 +62,17 @@ func (h *HTTPTransport) RegisterRoutes() {
 	})
 }
 
+// batchInsert handles the batch insert request.
 func (h *HTTPTransport) batchInsert(w http.ResponseWriter, r *http.Request) {
 	createorder.BatchInsert(w, r, h.service)
 }
 
+// getOrders handles the get orders request.
 func (h *HTTPTransport) getOrders(w http.ResponseWriter, r *http.Request) {
 	listorders.ListOrders(w, r, h.service)
 }
 
+// newRouter creates a new router for the HTTPTransport.
 func newRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.RequestID)
@@ -92,6 +106,7 @@ const (
 	idleTimeout       = 120 * time.Second
 )
 
+// newServer creates a new HTTP server.
 func newServer(router http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              "0.0.0.0:" + viper.GetString("server.http.port"),

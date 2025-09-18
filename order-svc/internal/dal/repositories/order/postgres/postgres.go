@@ -45,7 +45,7 @@ func (o *OrderDal) ToModel() (*order.Order, error) {
 	}, nil
 }
 
-// FromModel converts service layer Order model to OrderDal.
+// OrderDalFromModel converts service layer Order model to OrderDal.
 func OrderDalFromModel(o *order.Order) *OrderDal {
 	return &OrderDal{
 		Id:                 o.ID,
@@ -68,23 +68,25 @@ func (a OrderArray) Value() (driver.Value, error) {
 	}
 
 	values := make([]string, 0, len(a))
-	for _, order := range a {
+	for _, dal := range a {
 		values = append(values, fmt.Sprintf("(%d,'%s',%d,'%s','%s','%s')",
-			order.CustomerId,
-			order.DeliveryAddress,
-			order.TotalPriceCents,
-			order.TotalPriceCurrency,
-			order.CreatedAt.Format(time.RFC3339),
-			order.UpdatedAt.Format(time.RFC3339)))
+			dal.CustomerId,
+			dal.DeliveryAddress,
+			dal.TotalPriceCents,
+			dal.TotalPriceCurrency,
+			dal.CreatedAt.Format(time.RFC3339),
+			dal.UpdatedAt.Format(time.RFC3339)))
 	}
 
 	return strings.Join(values, ","), nil
 }
 
+// PostgresOrderRepository represents a Postgres order repository.
 type PostgresOrderRepository struct {
 	conn sqlx.ExtContext
 }
 
+// NewPostgresOrderRepository creates a new Postgres order repository.
 func NewPostgresOrderRepository(pgClient sqlx.ExtContext) *PostgresOrderRepository {
 	return &PostgresOrderRepository{
 		conn: pgClient,
@@ -212,8 +214,8 @@ func (r *PostgresOrderRepository) Query(
 		FROM orders
 	`)
 
-	args := []interface{}{}
-	conditions := []string{}
+	args := make([]any, 0, 10)
+	conditions := make([]string, 0, 5)
 	argIndex := 1
 
 	if len(filter.Ids) > 0 {
