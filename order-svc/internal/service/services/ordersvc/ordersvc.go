@@ -12,6 +12,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 )
 
+// OrderService is a service for managing orders.
 type OrderService struct {
 	pgClient *postgres.PostgresClient
 }
@@ -29,8 +30,10 @@ type unitOfWork interface {
 	OrderItemRepository() iorderitem.IOrderItemPostgresRepository
 }
 
+// option is a function that configures the OrderService.
 type option func(*OrderService)
 
+// MustNewOrderService creates a new OrderService.
 func MustNewOrderService(opts ...option) *OrderService {
 	s := &OrderService{}
 	for _, opt := range opts {
@@ -40,6 +43,9 @@ func MustNewOrderService(opts ...option) *OrderService {
 	return s
 }
 
+// WithPostgresClient sets the Postgres client for the OrderService.
+//
+//goland:noinspection GoExportedFuncWithUnexportedType
 func WithPostgresClient(pgClient *postgres.PostgresClient) option {
 	return func(s *OrderService) {
 		s.pgClient = pgClient
@@ -53,9 +59,9 @@ func (s *OrderService) BatchInsert(
 ) ([]order.Order, error) {
 	now := time.Now()
 
-	uow := s.newUOW()
+	work := s.newUOW()
 
-	err := uow.Begin(ctx)
+	err := work.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -64,19 +70,19 @@ func (s *OrderService) BatchInsert(
 		orders[i].UpdatedAt = now
 	}
 
-	orders, err = uow.OrderRepository().BulkInsert(ctx, orders)
+	orders, err = work.OrderRepository().BulkInsert(ctx, orders)
 	if err != nil {
 		return nil, err
 	}
 
 	orderItems := make([]orderitem.OrderItem, 0)
-	for _, order := range orders {
-		for _, item := range order.OrderItems {
-			item.OrderID = order.ID
+	for _, o := range orders {
+		for _, item := range o.OrderItems {
+			item.OrderID = o.ID
 			orderItems = append(orderItems, item)
 		}
 	}
-	orderItems, err = uow.OrderItemRepository().BulkInsert(ctx, orderItems)
+	orderItems, err = work.OrderItemRepository().BulkInsert(ctx, orderItems)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +91,7 @@ func (s *OrderService) BatchInsert(
 		orders[i].OrderItems = orderItems[i*len(orders[i].OrderItems) : (i+1)*len(orders[i].OrderItems)]
 	}
 
-	err = uow.Commit()
+	err = work.Commit()
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +111,9 @@ func (s *OrderService) GetOrders(
 		Offset:      (model.Page - 1) * model.PageSize,
 	}
 
-	uow := s.newUOW()
+	work := s.newUOW()
 
-	orders, err := uow.OrderRepository().Query(ctx, orderQuery)
+	orders, err := work.OrderRepository().Query(ctx, orderQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -117,10 +123,10 @@ func (s *OrderService) GetOrders(
 	}
 
 	orderItemQuery := &orderitem.QueryOrderItemsModel{}
-	for _, order := range orders {
-		orderItemQuery.OrderIds = append(orderItemQuery.OrderIds, order.ID)
+	for _, o := range orders {
+		orderItemQuery.OrderIds = append(orderItemQuery.OrderIds, o.ID)
 	}
-	orderItems, err := uow.OrderItemRepository().Query(ctx, orderItemQuery)
+	orderItems, err := work.OrderItemRepository().Query(ctx, orderItemQuery)
 	if err != nil {
 		return nil, err
 	}

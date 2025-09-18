@@ -18,14 +18,19 @@ type unitOfWork struct {
 	orderItemRepo iorderitem.IOrderItemPostgresRepository
 }
 
+// OrderRepository returns order repository.
 func (u *unitOfWork) OrderRepository() iorder.IOrderPostgresRepository {
 	return u.orderRepo
 }
 
+// OrderItemRepository returns order item repository.
 func (u *unitOfWork) OrderItemRepository() iorderitem.IOrderItemPostgresRepository {
 	return u.orderItemRepo
 }
 
+// NewUnitOfWork creates new unit of work.
+//
+//goland:noinspection GoExportedFuncWithUnexportedType
 func NewUnitOfWork(db *postgres.PostgresClient) *unitOfWork {
 	return &unitOfWork{
 		db:            db.DB(),
@@ -34,6 +39,7 @@ func NewUnitOfWork(db *postgres.PostgresClient) *unitOfWork {
 	}
 }
 
+// Begin starts a new transaction.
 func (u *unitOfWork) Begin(ctx context.Context) error {
 	tx, err := u.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -48,6 +54,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	return nil
 }
 
+// Commit commits the transaction.
 func (u *unitOfWork) Commit() error {
 	if u.tx == nil {
 		return nil
@@ -56,6 +63,7 @@ func (u *unitOfWork) Commit() error {
 	return u.tx.Commit()
 }
 
+// Rollback rolls back the transaction.
 func (u *unitOfWork) Rollback() error {
 	if u.tx == nil {
 		return nil
