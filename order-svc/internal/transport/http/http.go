@@ -8,8 +8,8 @@ import (
 
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
-	createorder "github.com/corray333/backend-labs/order/internal/transport/http/create_order"
-	listorders "github.com/corray333/backend-labs/order/internal/transport/http/list_orders"
+	createorder "github.com/corray333/backend-labs/order/internal/transport/http/v1/create_order"
+	listorders "github.com/corray333/backend-labs/order/internal/transport/http/v1/list_orders"
 	"github.com/corray333/backend-labs/order/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -56,8 +56,8 @@ func (h *HTTPTransport) Shutdown(ctx context.Context) error {
 
 // RegisterRoutes registers the routes for the HTTPTransport.
 func (h *HTTPTransport) RegisterRoutes() {
-	h.router.Get("/api/orders", h.getOrders)
-	h.router.Post("/api/orders", h.batchInsert)
+	h.router.Get("/v1/api/orders", h.getOrders)
+	h.router.Post("/v1/api/orders", h.batchInsert)
 }
 
 // batchInsert handles the batch insert request.

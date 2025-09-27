@@ -1,0 +1,82 @@
+version: '3'
+
+tasks:
+  install-tools:
+    desc: Install necessary protoc tools and plugins
+    cmds:
+      - echo "Installing protoc and plugins..."
+      - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+      - go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest
+      - go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+
+  proto:
+    desc: Generate all proto files (Go code, gateway, swagger)
+    deps: [proto-go, proto-gateway, proto-swagger]
+
+  proto-go:
+    desc: Generate Go code for gRPC
+    cmds:
+      - echo "Generating gRPC Go code..."
+      - |
+        protoc \
+          --go_out=. --go_opt=paths=source_relative \
+          --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+          --proto_path=../contracts \
+          --proto_path=../contracts/third_party/googleapis \
+          --proto_path=../contracts/third_party/grpc-ecosystem/grpc-gateway \
+          ../contracts/v1/order.proto
+
+  proto-gateway:
+    desc: Generate gRPC Gateway
+    cmds:
+      - echo "Generating gRPC Gateway..."
+      - |
+        protoc \
+          --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative \
+          --grpc-gateway_opt=generate_unbound_methods=true \
+          --proto_path=../contracts \
+          --proto_path=../contracts/third_party/googleapis \
+          --proto_path=../contracts/third_party/grpc-ecosystem/grpc-gateway \
+          ../contracts/v1/order.proto
+
+  proto-swagger:
+    desc: Generate Swagger documentation
+    cmds:
+      - echo "Generating Swagger documentation..."
+      - mkdir -p docs
+      - |
+        protoc \
+          --openapiv2_out=./docs \
+          --openapiv2_opt=logtostderr=true \
+          --openapiv2_opt=json_names_for_fields=false \
+          --proto_path=../contracts \
+          --proto_path=../contracts/third_party/googleapis \
+          --proto_path=../contracts/third_party/grpc-ecosystem/grpc-gateway \
+          ../contracts/v1/order.proto
+
+  setup-googleapis:
+    desc: Setup Google APIs for annotations
+    cmds:
+      - echo "Setting up Google APIs..."
+      - mkdir -p ../contracts/third_party
+      - cd ../contracts/third_party && git clone https://github.com/googleapis/googleapis.git || true
+      - echo "Setting up grpc-gateway protos..."
+      - mkdir -p ../contracts/third_party/grpc-ecosystem
+      - cd ../contracts/third_party/grpc-ecosystem && git clone https://github.com/grpc-ecosystem/grpc-gateway.git || true
+
+  clean:
+    desc: Clean generated files
+    cmds:
+      - rm -f v1/*.pb.go
+      - rm -f v1/*.pb.gw.go
+      - rm -f docs/*.swagger.json
+
+  setup:
+    desc: Full project setup
+    deps: [setup-googleapis, install-tools, proto]
+
+  run:
+    desc: Run the order service
+    cmds:
+      - go run cmd/main.go
