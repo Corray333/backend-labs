@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// OrderDal represents order data access layer model.
+// OrderDal represents iorderrepo data access layer model.
 type OrderDal struct {
 	Id                 int64     `db:"id"`
 	CustomerId         int64     `db:"customer_id"`
@@ -81,12 +81,12 @@ func (a OrderArray) Value() (driver.Value, error) {
 	return strings.Join(values, ","), nil
 }
 
-// PostgresOrderRepository represents a Postgres order repository.
+// PostgresOrderRepository represents a Postgres iorderrepo repository.
 type PostgresOrderRepository struct {
 	conn sqlx.ExtContext
 }
 
-// NewPostgresOrderRepository creates a new Postgres order repository.
+// NewPostgresOrderRepository creates a new Postgres iorderrepo repository.
 func NewPostgresOrderRepository(pgClient sqlx.ExtContext) *PostgresOrderRepository {
 	return &PostgresOrderRepository{
 		conn: pgClient,
@@ -176,11 +176,11 @@ func (r *PostgresOrderRepository) BulkInsert(
 			&dal.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan order: %w", err)
+			return nil, fmt.Errorf("failed to scan iorderrepo: %w", err)
 		}
 		model, err := dal.ToModel()
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert order dal to model: %w", err)
+			return nil, fmt.Errorf("failed to convert iorderrepo dal to model: %w", err)
 		}
 
 		model.OrderItems = append(model.OrderItems, orders[i].OrderItems...)
@@ -214,7 +214,7 @@ func (r *PostgresOrderRepository) Query(
 		FROM orders
 	`)
 
-	args := make([]any, 0, 10)
+	args := make([]any, 0, 5)
 	conditions := make([]string, 0, 5)
 	argIndex := 1
 
@@ -268,11 +268,11 @@ func (r *PostgresOrderRepository) Query(
 			&dal.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan order: %w", err)
+			return nil, fmt.Errorf("failed to scan iorderrepo: %w", err)
 		}
 		model, err := dal.ToModel()
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert order dal to model: %w", err)
+			return nil, fmt.Errorf("failed to convert iorderrepo dal to model: %w", err)
 		}
 		result = append(result, *model)
 	}

@@ -3,8 +3,8 @@ package uow
 import (
 	"context"
 
-	iorder "github.com/corray333/backend-labs/order/internal/dal/interfaces/order"
-	iorderitem "github.com/corray333/backend-labs/order/internal/dal/interfaces/orderitem"
+	iorderitem "github.com/corray333/backend-labs/order/internal/dal/interfaces/iorderitemrepo"
+	iorder "github.com/corray333/backend-labs/order/internal/dal/interfaces/iorderrepo"
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	orderrepo "github.com/corray333/backend-labs/order/internal/dal/repositories/order/postgres"
 	orderitemrepo "github.com/corray333/backend-labs/order/internal/dal/repositories/orderitem/postgres"
@@ -14,17 +14,17 @@ import (
 type unitOfWork struct {
 	db            *sqlx.DB
 	tx            *sqlx.Tx
-	orderRepo     iorder.PostgresRepository
-	orderItemRepo iorderitem.PostgresRepository
+	orderRepo     iorder.IOrderRepository
+	orderItemRepo iorderitem.IOrderItemRepository
 }
 
-// OrderRepository returns order repository.
-func (u *unitOfWork) OrderRepository() iorder.PostgresRepository {
+// OrderRepository returns iorderrepo repository.
+func (u *unitOfWork) OrderRepository() iorder.IOrderRepository {
 	return u.orderRepo
 }
 
-// OrderItemRepository returns order item repository.
-func (u *unitOfWork) OrderItemRepository() iorderitem.PostgresRepository {
+// OrderItemRepository returns iorderrepo item repository.
+func (u *unitOfWork) OrderItemRepository() iorderitem.IOrderItemRepository {
 	return u.orderItemRepo
 }
 

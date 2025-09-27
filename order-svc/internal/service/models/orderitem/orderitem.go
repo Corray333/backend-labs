@@ -6,7 +6,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 )
 
-// OrderItem represents an item within an order.
+// OrderItem represents an item within an iorderrepo.
 type OrderItem struct {
 	ID            int64             `json:"id"`
 	OrderID       int64             `json:"orderId"`

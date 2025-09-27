@@ -13,7 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// OrderItemDal represents order item data access layer model.
+// OrderItemDal represents iorderrepo item data access layer model.
 type OrderItemDal struct {
 	Id            int64     `db:"id"`
 	OrderId       int64     `db:"order_id"`
@@ -64,19 +64,19 @@ func OrderItemDalFromModel(oi *orderitem.OrderItem) *OrderItemDal {
 	}
 }
 
-// PostgresOrderItemRepository represents a Postgres order item repository.
+// PostgresOrderItemRepository represents a Postgres iorderrepo item repository.
 type PostgresOrderItemRepository struct {
 	conn sqlx.ExtContext
 }
 
-// NewPostgresOrderItemRepository creates a new Postgres order item repository.
+// NewPostgresOrderItemRepository creates a new Postgres iorderrepo item repository.
 func NewPostgresOrderItemRepository(pgClient sqlx.ExtContext) *PostgresOrderItemRepository {
 	return &PostgresOrderItemRepository{
 		conn: pgClient,
 	}
 }
 
-// BulkInsert inserts multiple order items and returns the inserted order items with IDs.
+// BulkInsert inserts multiple iorderrepo items and returns the inserted iorderrepo items with IDs.
 func (r *PostgresOrderItemRepository) BulkInsert(
 	ctx context.Context,
 	orderItems []orderitem.OrderItem,
@@ -156,7 +156,7 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 		pq.Array(createdAts),
 		pq.Array(updatedAts))
 	if err != nil {
-		return nil, fmt.Errorf("failed to bulk insert order items: %w", err)
+		return nil, fmt.Errorf("failed to bulk insert iorderrepo items: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -180,7 +180,7 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 			&dal.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan order item: %w", err)
+			return nil, fmt.Errorf("failed to scan iorderrepo item: %w", err)
 		}
 		result = append(result, *dal.ToModel())
 	}
@@ -192,7 +192,7 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 	return result, nil
 }
 
-// Query retrieves order items based on filter criteria.
+// Query retrieves iorderrepo items based on filter criteria.
 func (r *PostgresOrderItemRepository) Query(
 	ctx context.Context,
 	filter *orderitem.QueryOrderItemsModel,
@@ -252,7 +252,7 @@ func (r *PostgresOrderItemRepository) Query(
 
 	rows, err := r.conn.QueryContext(ctx, sqlBuilder.String(), args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query order items: %w", err)
+		return nil, fmt.Errorf("failed to query iorderrepo items: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -276,7 +276,7 @@ func (r *PostgresOrderItemRepository) Query(
 			&dal.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan order item: %w", err)
+			return nil, fmt.Errorf("failed to scan iorderrepo item: %w", err)
 		}
 		result = append(result, *dal.ToModel())
 	}

@@ -6,8 +6,8 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 )
 
-// PostgresRepository is an interface for order item postgres repository.
-type PostgresRepository interface {
+// IOrderItemRepository is an interface for order item postgres repository.
+type IOrderItemRepository interface {
 	BulkInsert(ctx context.Context, orderItems []orderitem.OrderItem) ([]orderitem.OrderItem, error)
 	Query(
 		ctx context.Context,

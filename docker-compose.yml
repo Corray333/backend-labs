@@ -8,7 +8,7 @@ services:
       POSTGRES_HOST_AUTH_METHOD: md5
       POSTGRES_INITDB_ARGS: --auth=md5
     volumes:
-      - order-pgdata:/var/lib/postgresql/data/
+      - iorderrepo-pgdata:/var/lib/postgresql/data/
   order-pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
@@ -31,9 +31,22 @@ services:
       - 3001:3001
     volumes:
       - .env:/app/.env
-      - ./configs/order-svc/local.yml:/etc/order-svc/config.yml
+      - ./configs/iorderrepo-svc/local.yml:/etc/iorderrepo-svc/config.yml
     depends_on:
       - order-pgbouncer
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   order-pgdata:
+  rabbitmq_data:

@@ -14,7 +14,7 @@ func MustInit() {
 	}
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("/etc/order-svc")
+	viper.AddConfigPath("/etc/iorderrepo-svc")
 	if err := viper.ReadInConfig(); err != nil {
 		panic("error while reading config file: " + err.Error())
 	}

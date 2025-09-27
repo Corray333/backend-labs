@@ -18,7 +18,7 @@ type service interface {
 	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
 }
 
-// itemInCreateOrderRequest represents an item in a create order request.
+// itemInCreateOrderRequest represents an item in a create iorderrepo request.
 type itemInCreateOrderRequest struct {
 	ProductID     int64  `json:"productId"     validate:"gt=0"`
 	Quantity      int    `json:"quantity"      validate:"gt=0"`
@@ -43,7 +43,7 @@ func (r *itemInCreateOrderRequest) toModel() (*orderitem.OrderItem, error) {
 	}, nil
 }
 
-// orderInCreateOrderRequest represents an order in a create order request.
+// orderInCreateOrderRequest represents an iorderrepo in a create iorderrepo request.
 type orderInCreateOrderRequest struct {
 	CustomerID         int64                      `json:"customerId"         validate:"gt=0"`
 	DeliveryAddress    string                     `json:"deliveryAddress"    validate:"required"`
@@ -80,12 +80,12 @@ func (r *orderInCreateOrderRequest) toModel() (*order.Order, error) {
 	}, nil
 }
 
-// createOrderRequest represents a create order request.
+// createOrderRequest represents a create iorderrepo request.
 type createOrderRequest struct {
 	Orders []orderInCreateOrderRequest `json:"orders" validate:"required,min=1,dive"`
 }
 
-// Validate validates the create order request.
+// Validate validates the create iorderrepo request.
 func (r *createOrderRequest) Validate() error {
 	return validator.New().Struct(r)
 }

@@ -2,10 +2,12 @@ package ordersvc
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
-	iorder "github.com/corray333/backend-labs/order/internal/dal/interfaces/order"
-	iorderitem "github.com/corray333/backend-labs/order/internal/dal/interfaces/orderitem"
+	"github.com/corray333/backend-labs/order/internal/dal/interfaces/iauditrepo"
+	iorderitem "github.com/corray333/backend-labs/order/internal/dal/interfaces/iorderitemrepo"
+	iorder "github.com/corray333/backend-labs/order/internal/dal/interfaces/iorderrepo"
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/uow"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
@@ -15,6 +17,7 @@ import (
 // OrderService is a service for managing orders.
 type OrderService struct {
 	pgClient *postgres.Client
+	auditor  iauditrepo.IAuditorRepository
 }
 
 func (s *OrderService) newUOW() unitOfWork {
@@ -26,8 +29,8 @@ type unitOfWork interface {
 	Commit() error
 	Rollback() error
 
-	OrderRepository() iorder.PostgresRepository
-	OrderItemRepository() iorderitem.PostgresRepository
+	OrderRepository() iorder.IOrderRepository
+	OrderItemRepository() iorderitem.IOrderItemRepository
 }
 
 // option is a function that configures the OrderService.
@@ -41,6 +44,15 @@ func MustNewOrderService(opts ...option) *OrderService {
 	}
 
 	return s
+}
+
+// WithAuditor sets the Auditor for the OrderService.
+//
+//goland:noinspection GoExportedFuncWithUnexportedType
+func WithAuditor(auditor iauditrepo.IAuditorRepository) option {
+	return func(s *OrderService) {
+		s.auditor = auditor
+	}
 }
 
 // WithPostgresClient sets the Postgres client for the OrderService.
@@ -96,10 +108,17 @@ func (s *OrderService) BatchInsert(
 		return nil, err
 	}
 
+	go func() {
+		err := s.auditor.LogBatchInsert(ctx, orders)
+		if err != nil {
+			slog.Error("Failed to log batch insert")
+		}
+	}()
+
 	return orders, nil
 }
 
-// GetOrders retrieves orders with optional order items based on filter.
+// GetOrders retrieves orders with optional iorderrepo items based on filter.
 func (s *OrderService) GetOrders(
 	ctx context.Context,
 	model orderitem.QueryOrderItemsModel,
