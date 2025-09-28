@@ -3,6 +3,7 @@ package converters
 import (
 	"fmt"
 
+	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
@@ -142,5 +143,61 @@ func ListOrdersResponseToProto(orders []order.Order) *pb.ListOrdersResponse {
 
 	return &pb.ListOrdersResponse{
 		Orders: pbOrders,
+	}
+}
+
+// AuditLogOrderToProto converts internal AuditLogOrder model to protobuf AuditLogOrder.
+func AuditLogOrderToProto(auditLog auditlog.AuditLogOrder) *pb.AuditLogOrder {
+	return &pb.AuditLogOrder{
+		Id:          auditLog.ID,
+		OrderId:     auditLog.OrderID,
+		OrderItemId: auditLog.OrderItemID,
+		CustomerId:  auditLog.CustomerID,
+		OrderStatus: auditLog.OrderStatus,
+		CreatedAt:   timestamppb.New(auditLog.CreatedAt),
+		UpdatedAt:   timestamppb.New(auditLog.UpdatedAt),
+	}
+}
+
+// AuditLogOrderFromProto converts protobuf AuditLogOrder to internal AuditLogOrder model.
+func AuditLogOrderFromProto(pbAuditLog *pb.AuditLogOrder) auditlog.AuditLogOrder {
+	auditLog := auditlog.AuditLogOrder{
+		ID:          pbAuditLog.Id,
+		OrderID:     pbAuditLog.OrderId,
+		OrderItemID: pbAuditLog.OrderItemId,
+		CustomerID:  pbAuditLog.CustomerId,
+		OrderStatus: pbAuditLog.OrderStatus,
+	}
+
+	// Set timestamps if they exist in protobuf
+	if pbAuditLog.CreatedAt != nil {
+		auditLog.CreatedAt = pbAuditLog.CreatedAt.AsTime()
+	}
+	if pbAuditLog.UpdatedAt != nil {
+		auditLog.UpdatedAt = pbAuditLog.UpdatedAt.AsTime()
+	}
+
+	return auditLog
+}
+
+// SaveAuditLogRequestFromProto converts protobuf SaveAuditLogRequest to slice of internal AuditLogOrder models.
+func SaveAuditLogRequestFromProto(req *pb.SaveAuditLogRequest) []auditlog.AuditLogOrder {
+	auditLogs := make([]auditlog.AuditLogOrder, len(req.AuditLogs))
+	for i, pbAuditLog := range req.AuditLogs {
+		auditLogs[i] = AuditLogOrderFromProto(pbAuditLog)
+	}
+
+	return auditLogs
+}
+
+// SaveAuditLogResponseToProto converts slice of internal AuditLogOrder models to protobuf SaveAuditLogResponse.
+func SaveAuditLogResponseToProto(auditLogs []auditlog.AuditLogOrder) *pb.SaveAuditLogResponse {
+	pbAuditLogs := make([]*pb.AuditLogOrder, len(auditLogs))
+	for i, auditLog := range auditLogs {
+		pbAuditLogs[i] = AuditLogOrderToProto(auditLog)
+	}
+
+	return &pb.SaveAuditLogResponse{
+		AuditLogs: pbAuditLogs,
 	}
 }

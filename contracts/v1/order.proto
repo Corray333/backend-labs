@@ -66,6 +66,24 @@ message ListOrdersResponse {
   repeated Order orders = 1;
 }
 
+message AuditLogOrder {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 order_item_id = 3;
+  int64 customer_id = 4;
+  string order_status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message SaveAuditLogRequest {
+  repeated AuditLogOrder audit_logs = 1;
+}
+
+message SaveAuditLogResponse {
+  repeated AuditLogOrder audit_logs = 1;
+}
+
 // Сервис с HTTP аннотациями
 service OrderService {
   // Создать заказы пакетно
@@ -90,6 +108,19 @@ service OrderService {
       summary: "Получить список заказов";
       description: "Получает список заказов с возможностью фильтрации по ID заказов и клиентов";
       tags: "Orders";
+    };
+  }
+
+  // Сохранить аудит логи
+  rpc SaveAuditLog(SaveAuditLogRequest) returns (SaveAuditLogResponse) {
+    option (google.api.http) = {
+      post: "/api/order-service/v1/audit-logs"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Сохранить аудит логи";
+      description: "Сохраняет аудит логи заказов в базу данных";
+      tags: "Audit";
     };
   }
 }

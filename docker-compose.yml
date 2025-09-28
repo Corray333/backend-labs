@@ -30,6 +30,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - 3001:3001
+      - 9001:9001
     volumes:
       - .env:/app/.env
       - ./configs/order-svc/local.yml:/etc/order-svc/config.yml

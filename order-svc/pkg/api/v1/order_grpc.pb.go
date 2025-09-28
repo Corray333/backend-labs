@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	OrderService_BatchInsert_FullMethodName = "/api.v1.OrderService/BatchInsert"
-	OrderService_ListOrders_FullMethodName  = "/api.v1.OrderService/ListOrders"
+	OrderService_BatchInsert_FullMethodName  = "/api.v1.OrderService/BatchInsert"
+	OrderService_ListOrders_FullMethodName   = "/api.v1.OrderService/ListOrders"
+	OrderService_SaveAuditLog_FullMethodName = "/api.v1.OrderService/SaveAuditLog"
 )
 
 // OrderServiceClient is the client API for OrderService service.
@@ -33,6 +34,8 @@ type OrderServiceClient interface {
 	BatchInsert(ctx context.Context, in *BatchInsertRequest, opts ...grpc.CallOption) (*BatchInsertResponse, error)
 	// Получить список заказов
 	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
+	// Сохранить аудит логи
+	SaveAuditLog(ctx context.Context, in *SaveAuditLogRequest, opts ...grpc.CallOption) (*SaveAuditLogResponse, error)
 }
 
 type orderServiceClient struct {
@@ -63,6 +66,16 @@ func (c *orderServiceClient) ListOrders(ctx context.Context, in *ListOrdersReque
 	return out, nil
 }
 
+func (c *orderServiceClient) SaveAuditLog(ctx context.Context, in *SaveAuditLogRequest, opts ...grpc.CallOption) (*SaveAuditLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveAuditLogResponse)
+	err := c.cc.Invoke(ctx, OrderService_SaveAuditLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OrderServiceServer is the server API for OrderService service.
 // All implementations must embed UnimplementedOrderServiceServer
 // for forward compatibility.
@@ -73,6 +86,8 @@ type OrderServiceServer interface {
 	BatchInsert(context.Context, *BatchInsertRequest) (*BatchInsertResponse, error)
 	// Получить список заказов
 	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error)
+	// Сохранить аудит логи
+	SaveAuditLog(context.Context, *SaveAuditLogRequest) (*SaveAuditLogResponse, error)
 	mustEmbedUnimplementedOrderServiceServer()
 }
 
@@ -88,6 +103,9 @@ func (UnimplementedOrderServiceServer) BatchInsert(context.Context, *BatchInsert
 }
 func (UnimplementedOrderServiceServer) ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListOrders not implemented")
+}
+func (UnimplementedOrderServiceServer) SaveAuditLog(context.Context, *SaveAuditLogRequest) (*SaveAuditLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveAuditLog not implemented")
 }
 func (UnimplementedOrderServiceServer) mustEmbedUnimplementedOrderServiceServer() {}
 func (UnimplementedOrderServiceServer) testEmbeddedByValue()                      {}
@@ -146,6 +164,24 @@ func _OrderService_ListOrders_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OrderService_SaveAuditLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveAuditLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).SaveAuditLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_SaveAuditLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).SaveAuditLog(ctx, req.(*SaveAuditLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // OrderService_ServiceDesc is the grpc.ServiceDesc for OrderService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +196,10 @@ var OrderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListOrders",
 			Handler:    _OrderService_ListOrders_Handler,
+		},
+		{
+			MethodName: "SaveAuditLog",
+			Handler:    _OrderService_SaveAuditLog_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

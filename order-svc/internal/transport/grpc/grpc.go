@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 	pb "github.com/corray333/backend-labs/order/pkg/api/v1"
@@ -18,6 +19,10 @@ import (
 type service interface {
 	GetOrders(ctx context.Context, model orderitem.QueryOrderItemsModel) ([]order.Order, error)
 	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
+	SaveAuditLogs(
+		ctx context.Context,
+		auditLogs []auditlog.AuditLogOrder,
+	) ([]auditlog.AuditLogOrder, error)
 }
 
 // GRPCTransport represents the gRPC transport layer.

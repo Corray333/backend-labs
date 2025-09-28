@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	pb "github.com/corray333/backend-labs/order/pkg/api/v1"
 	"github.com/corray333/backend-labs/order/internal/transport/http/v1/converters"
+	pb "github.com/corray333/backend-labs/order/pkg/api/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -81,6 +81,32 @@ func (s *OrderServer) ListOrders(
 	response := converters.ListOrdersResponseToProto(orders)
 
 	slog.Info("ListOrders completed successfully", "orders_count", len(orders))
+
+	return response, nil
+}
+
+// SaveAuditLog handles the save audit log gRPC request.
+func (s *OrderServer) SaveAuditLog(
+	ctx context.Context,
+	req *pb.SaveAuditLogRequest,
+) (*pb.SaveAuditLogResponse, error) {
+	slog.Info("Received SaveAuditLog gRPC request", "audit_logs_count", len(req.AuditLogs))
+
+	// Convert protobuf request to internal models
+	auditLogs := converters.SaveAuditLogRequestFromProto(req)
+
+	// Call service layer
+	savedAuditLogs, err := s.service.SaveAuditLogs(ctx, auditLogs)
+	if err != nil {
+		slog.Error("Error saving audit logs", "error", err)
+
+		return nil, status.Errorf(codes.Internal, "failed to save audit logs: %v", err)
+	}
+
+	// Convert response to protobuf
+	response := converters.SaveAuditLogResponseToProto(savedAuditLogs)
+
+	slog.Info("SaveAuditLog completed successfully", "saved_count", len(savedAuditLogs))
 
 	return response, nil
 }

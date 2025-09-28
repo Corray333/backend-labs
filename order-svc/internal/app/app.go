@@ -29,9 +29,8 @@ type App struct {
 // MustNewApp creates a new application.
 func MustNewApp() *App {
 	rabbitMqClient := rabbitmq.MustNewClient()
-	auditRabbitMQRepository := audit.NewAuditRabbitMQRepository(rabbitMqClient)
-
 	postgresClient := postgres.MustNewClient()
+	auditRabbitMQRepository := audit.NewAuditRabbitMQRepository(rabbitMqClient, postgresClient)
 
 	orderSvc := ordersvc.MustNewOrderService(
 		ordersvc.WithPostgresClient(postgresClient),

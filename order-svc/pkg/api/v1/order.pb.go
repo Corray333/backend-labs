@@ -409,6 +409,186 @@ func (x *ListOrdersResponse) GetOrders() []*Order {
 	return nil
 }
 
+type AuditLogOrder struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	OrderId       int64                  `protobuf:"varint,2,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	OrderItemId   int64                  `protobuf:"varint,3,opt,name=order_item_id,json=orderItemId,proto3" json:"order_item_id,omitempty"`
+	CustomerId    int64                  `protobuf:"varint,4,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	OrderStatus   string                 `protobuf:"bytes,5,opt,name=order_status,json=orderStatus,proto3" json:"order_status,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditLogOrder) Reset() {
+	*x = AuditLogOrder{}
+	mi := &file_v1_order_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditLogOrder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditLogOrder) ProtoMessage() {}
+
+func (x *AuditLogOrder) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_order_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditLogOrder.ProtoReflect.Descriptor instead.
+func (*AuditLogOrder) Descriptor() ([]byte, []int) {
+	return file_v1_order_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AuditLogOrder) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *AuditLogOrder) GetOrderId() int64 {
+	if x != nil {
+		return x.OrderId
+	}
+	return 0
+}
+
+func (x *AuditLogOrder) GetOrderItemId() int64 {
+	if x != nil {
+		return x.OrderItemId
+	}
+	return 0
+}
+
+func (x *AuditLogOrder) GetCustomerId() int64 {
+	if x != nil {
+		return x.CustomerId
+	}
+	return 0
+}
+
+func (x *AuditLogOrder) GetOrderStatus() string {
+	if x != nil {
+		return x.OrderStatus
+	}
+	return ""
+}
+
+func (x *AuditLogOrder) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AuditLogOrder) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type SaveAuditLogRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AuditLogs     []*AuditLogOrder       `protobuf:"bytes,1,rep,name=audit_logs,json=auditLogs,proto3" json:"audit_logs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveAuditLogRequest) Reset() {
+	*x = SaveAuditLogRequest{}
+	mi := &file_v1_order_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveAuditLogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveAuditLogRequest) ProtoMessage() {}
+
+func (x *SaveAuditLogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_order_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveAuditLogRequest.ProtoReflect.Descriptor instead.
+func (*SaveAuditLogRequest) Descriptor() ([]byte, []int) {
+	return file_v1_order_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SaveAuditLogRequest) GetAuditLogs() []*AuditLogOrder {
+	if x != nil {
+		return x.AuditLogs
+	}
+	return nil
+}
+
+type SaveAuditLogResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AuditLogs     []*AuditLogOrder       `protobuf:"bytes,1,rep,name=audit_logs,json=auditLogs,proto3" json:"audit_logs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveAuditLogResponse) Reset() {
+	*x = SaveAuditLogResponse{}
+	mi := &file_v1_order_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveAuditLogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveAuditLogResponse) ProtoMessage() {}
+
+func (x *SaveAuditLogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_order_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveAuditLogResponse.ProtoReflect.Descriptor instead.
+func (*SaveAuditLogResponse) Descriptor() ([]byte, []int) {
+	return file_v1_order_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SaveAuditLogResponse) GetAuditLogs() []*AuditLogOrder {
+	if x != nil {
+		return x.AuditLogs
+	}
+	return nil
+}
+
 var File_v1_order_proto protoreflect.FileDescriptor
 
 const file_v1_order_proto_rawDesc = "" +
@@ -447,13 +627,32 @@ const file_v1_order_proto_rawDesc = "" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x04 \x01(\x05R\x06offset\";\n" +
 	"\x12ListOrdersResponse\x12%\n" +
-	"\x06orders\x18\x01 \x03(\v2\r.api.v1.OrderR\x06orders2\xa4\x04\n" +
+	"\x06orders\x18\x01 \x03(\v2\r.api.v1.OrderR\x06orders\"\x98\x02\n" +
+	"\rAuditLogOrder\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
+	"\border_id\x18\x02 \x01(\x03R\aorderId\x12\"\n" +
+	"\rorder_item_id\x18\x03 \x01(\x03R\vorderItemId\x12\x1f\n" +
+	"\vcustomer_id\x18\x04 \x01(\x03R\n" +
+	"customerId\x12!\n" +
+	"\forder_status\x18\x05 \x01(\tR\vorderStatus\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"K\n" +
+	"\x13SaveAuditLogRequest\x124\n" +
+	"\n" +
+	"audit_logs\x18\x01 \x03(\v2\x15.api.v1.AuditLogOrderR\tauditLogs\"L\n" +
+	"\x14SaveAuditLogResponse\x124\n" +
+	"\n" +
+	"audit_logs\x18\x01 \x03(\v2\x15.api.v1.AuditLogOrderR\tauditLogs2\xa0\x06\n" +
 	"\fOrderService\x12\xe1\x01\n" +
 	"\vBatchInsert\x12\x1a.api.v1.BatchInsertRequest\x1a\x1b.api.v1.BatchInsertResponse\"\x98\x01\x92An\n" +
 	"\x06Orders\x12\x1bСоздать заказы\x1aGСоздает новые заказы в системе батчами\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/api/order-service/v1/orders\x12\xaf\x02\n" +
 	"\n" +
 	"ListOrders\x12\x19.api.v1.ListOrdersRequest\x1a\x1a.api.v1.ListOrdersResponse\"\xe9\x01\x92A\xc1\x01\n" +
-	"\x06Orders\x12,Получить список заказов\x1a\x88\x01Получает список заказов с возможностью фильтрации по ID заказов и клиентов\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/order-service/v1/ordersB\xb2\x01\x92A\x87\x01\x12M\n" +
+	"\x06Orders\x12,Получить список заказов\x1a\x88\x01Получает список заказов с возможностью фильтрации по ID заказов и клиентов\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/order-service/v1/orders\x12\xf9\x01\n" +
+	"\fSaveAuditLog\x12\x1b.api.v1.SaveAuditLogRequest\x1a\x1c.api.v1.SaveAuditLogResponse\"\xad\x01\x92A\x7f\n" +
+	"\x05Audit\x12&Сохранить аудит логи\x1aNСохраняет аудит логи заказов в базу данных\x82\xd3\xe4\x93\x02%:\x01*\" /api/order-service/v1/audit-logsB\xb2\x01\x92A\x87\x01\x12M\n" +
 	"\tOrder API\x12\x11Order Service API\"(\n" +
 	"\vMark Anikin\x1a\x19mark.corray.off@gmail.com2\x031.0\x1a\x0elocalhost:3001*\x02\x01\x022\x10application/json:\x10application/jsonZ%github.com/yourorg/yourproject/api/v1b\x06proto3"
 
@@ -469,7 +668,7 @@ func file_v1_order_proto_rawDescGZIP() []byte {
 	return file_v1_order_proto_rawDescData
 }
 
-var file_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_v1_order_proto_goTypes = []any{
 	(*OrderItem)(nil),             // 0: api.v1.OrderItem
 	(*Order)(nil),                 // 1: api.v1.Order
@@ -477,24 +676,33 @@ var file_v1_order_proto_goTypes = []any{
 	(*BatchInsertResponse)(nil),   // 3: api.v1.BatchInsertResponse
 	(*ListOrdersRequest)(nil),     // 4: api.v1.ListOrdersRequest
 	(*ListOrdersResponse)(nil),    // 5: api.v1.ListOrdersResponse
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(*AuditLogOrder)(nil),         // 6: api.v1.AuditLogOrder
+	(*SaveAuditLogRequest)(nil),   // 7: api.v1.SaveAuditLogRequest
+	(*SaveAuditLogResponse)(nil),  // 8: api.v1.SaveAuditLogResponse
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
 }
 var file_v1_order_proto_depIdxs = []int32{
-	6, // 0: api.v1.Order.created_at:type_name -> google.protobuf.Timestamp
-	6, // 1: api.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
-	0, // 2: api.v1.Order.order_items:type_name -> api.v1.OrderItem
-	1, // 3: api.v1.BatchInsertRequest.orders:type_name -> api.v1.Order
-	1, // 4: api.v1.BatchInsertResponse.orders:type_name -> api.v1.Order
-	1, // 5: api.v1.ListOrdersResponse.orders:type_name -> api.v1.Order
-	2, // 6: api.v1.OrderService.BatchInsert:input_type -> api.v1.BatchInsertRequest
-	4, // 7: api.v1.OrderService.ListOrders:input_type -> api.v1.ListOrdersRequest
-	3, // 8: api.v1.OrderService.BatchInsert:output_type -> api.v1.BatchInsertResponse
-	5, // 9: api.v1.OrderService.ListOrders:output_type -> api.v1.ListOrdersResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	9,  // 0: api.v1.Order.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 1: api.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 2: api.v1.Order.order_items:type_name -> api.v1.OrderItem
+	1,  // 3: api.v1.BatchInsertRequest.orders:type_name -> api.v1.Order
+	1,  // 4: api.v1.BatchInsertResponse.orders:type_name -> api.v1.Order
+	1,  // 5: api.v1.ListOrdersResponse.orders:type_name -> api.v1.Order
+	9,  // 6: api.v1.AuditLogOrder.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 7: api.v1.AuditLogOrder.updated_at:type_name -> google.protobuf.Timestamp
+	6,  // 8: api.v1.SaveAuditLogRequest.audit_logs:type_name -> api.v1.AuditLogOrder
+	6,  // 9: api.v1.SaveAuditLogResponse.audit_logs:type_name -> api.v1.AuditLogOrder
+	2,  // 10: api.v1.OrderService.BatchInsert:input_type -> api.v1.BatchInsertRequest
+	4,  // 11: api.v1.OrderService.ListOrders:input_type -> api.v1.ListOrdersRequest
+	7,  // 12: api.v1.OrderService.SaveAuditLog:input_type -> api.v1.SaveAuditLogRequest
+	3,  // 13: api.v1.OrderService.BatchInsert:output_type -> api.v1.BatchInsertResponse
+	5,  // 14: api.v1.OrderService.ListOrders:output_type -> api.v1.ListOrdersResponse
+	8,  // 15: api.v1.OrderService.SaveAuditLog:output_type -> api.v1.SaveAuditLogResponse
+	13, // [13:16] is the sub-list for method output_type
+	10, // [10:13] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_v1_order_proto_init() }
@@ -508,7 +716,7 @@ func file_v1_order_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_order_proto_rawDesc), len(file_v1_order_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

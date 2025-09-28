@@ -10,6 +10,7 @@ import (
 	iorder "github.com/corray333/backend-labs/order/internal/dal/interfaces/iorderrepo"
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/uow"
+	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 )
@@ -159,4 +160,32 @@ func (s *OrderService) GetOrders(
 	}
 
 	return orders, nil
+}
+
+// SaveAuditLogs saves audit log entries to the database.
+func (s *OrderService) SaveAuditLogs(
+	ctx context.Context,
+	auditLogs []auditlog.AuditLogOrder,
+) ([]auditlog.AuditLogOrder, error) {
+	now := time.Now()
+
+	// Set created and updated timestamps
+	for i := range auditLogs {
+		if auditLogs[i].CreatedAt.IsZero() {
+			auditLogs[i].CreatedAt = now
+		}
+		if auditLogs[i].UpdatedAt.IsZero() {
+			auditLogs[i].UpdatedAt = now
+		}
+	}
+
+	// Save audit logs using the auditor repository
+	err := s.auditor.SaveAuditLogs(ctx, auditLogs)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("Audit logs saved successfully", "count", len(auditLogs))
+
+	return auditLogs, nil
 }

@@ -26,6 +26,40 @@
     "application/json"
   ],
   "paths": {
+    "/api/order-service/v1/audit-logs": {
+      "post": {
+        "summary": "Сохранить аудит логи",
+        "description": "Сохраняет аудит логи заказов в базу данных",
+        "operationId": "OrderService_SaveAuditLog",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SaveAuditLogResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SaveAuditLogRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
     "/api/order-service/v1/orders": {
       "get": {
         "summary": "Получить список заказов",
@@ -150,6 +184,38 @@
         }
       }
     },
+    "v1AuditLogOrder": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "order_item_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "customer_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "order_status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "v1BatchInsertRequest": {
       "type": "object",
       "properties": {
@@ -250,6 +316,30 @@
         }
       },
       "title": "Сообщения"
+    },
+    "v1SaveAuditLogRequest": {
+      "type": "object",
+      "properties": {
+        "audit_logs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AuditLogOrder"
+          }
+        }
+      }
+    },
+    "v1SaveAuditLogResponse": {
+      "type": "object",
+      "properties": {
+        "audit_logs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AuditLogOrder"
+          }
+        }
+      }
     }
   }
 }
