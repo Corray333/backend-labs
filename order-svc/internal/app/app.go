@@ -13,6 +13,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/dal/repositories/audit"
 	"github.com/corray333/backend-labs/order/internal/service/services/ordersvc"
+	grpctransport "github.com/corray333/backend-labs/order/internal/transport/grpc"
 	httptransport "github.com/corray333/backend-labs/order/internal/transport/http"
 )
 
@@ -22,6 +23,7 @@ type App struct {
 	transport      *httptransport.HTTPTransport
 	postgresClient *postgres.Client
 	rabbitMqClient *rabbitmq.Client
+	grpcTransport  *grpctransport.GRPCTransport
 }
 
 // MustNewApp creates a new application.
@@ -39,11 +41,14 @@ func MustNewApp() *App {
 	transport := httptransport.NewHTTPTransport(orderSvc)
 	transport.RegisterRoutes()
 
+	grpcTransport := grpctransport.NewGRPCTransport(orderSvc)
+
 	return &App{
 		orderSvc:       orderSvc,
 		transport:      transport,
 		postgresClient: postgresClient,
 		rabbitMqClient: rabbitMqClient,
+		grpcTransport:  grpcTransport,
 	}
 }
 
@@ -58,6 +63,13 @@ func (a *App) Run() {
 		slog.Info("Starting HTTP server")
 		if err := a.transport.Run(); err != nil {
 			slog.Error("HTTP server error", "error", err)
+		}
+	}()
+
+	go func() {
+		slog.Info("Starting gRPC server")
+		if err := a.grpcTransport.Run(); err != nil {
+			slog.Error("gRPC server error", "error", err)
 		}
 	}()
 
@@ -96,6 +108,14 @@ func (a *App) gracefulShutdown() {
 			slog.Error("Database connection close error", "error", err)
 		} else {
 			slog.Info("Database connection closed gracefully")
+		}
+	})
+
+	wg.Go(func() {
+		if err := a.grpcTransport.Shutdown(ctx); err != nil {
+			slog.Error("gRPC server shutdown error", "error", err)
+		} else {
+			slog.Info("gRPC server stopped gracefully")
 		}
 	})
 

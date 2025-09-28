@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
-	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
-	"github.com/go-playground/validator/v10"
+	"github.com/corray333/backend-labs/order/internal/transport/http/v1/converters"
+	pb "github.com/corray333/backend-labs/order/pkg/api/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // service is an interface for the service layer.
@@ -18,107 +17,38 @@ type service interface {
 	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
 }
 
-// itemInCreateOrderRequest represents an item in a create iorderrepo request.
-type itemInCreateOrderRequest struct {
-	ProductID     int64  `json:"productId"     validate:"gt=0"`
-	Quantity      int    `json:"quantity"      validate:"gt=0"`
-	ProductTitle  string `json:"productTitle"  validate:"required"`
-	ProductUrl    string `json:"productUrl"`
-	PriceCents    int64  `json:"priceCents"    validate:"gt=0"`
-	PriceCurrency string `json:"priceCurrency" validate:"required"`
-}
-
-// toModel converts itemInCreateOrderRequest to orderitem.OrderItem.
-func (r *itemInCreateOrderRequest) toModel() (*orderitem.OrderItem, error) {
-	cur, err := currency.ParseCurrency(r.PriceCurrency)
-	if err != nil {
-		return nil, err
-	}
-
-	return &orderitem.OrderItem{
-		ProductID:     r.ProductID,
-		ProductUrl:    r.ProductUrl,
-		PriceCents:    r.PriceCents,
-		PriceCurrency: cur,
-	}, nil
-}
-
-// orderInCreateOrderRequest represents an iorderrepo in a create iorderrepo request.
-type orderInCreateOrderRequest struct {
-	CustomerID         int64                      `json:"customerId"         validate:"gt=0"`
-	DeliveryAddress    string                     `json:"deliveryAddress"    validate:"required"`
-	TotalPriceCents    int64                      `json:"totalPriceCents"    validate:"gt=0"`
-	TotalPriceCurrency string                     `json:"totalPriceCurrency" validate:"required"`
-	CreatedAt          time.Time                  `json:"createdAt"`
-	UpdatedAt          time.Time                  `json:"updatedAt"`
-	OrderItems         []itemInCreateOrderRequest `json:"orderItems"         validate:"required,min=1,dive"`
-}
-
-// toModel converts orderInCreateOrderRequest to order.Order.
-func (r *orderInCreateOrderRequest) toModel() (*order.Order, error) {
-	cur, err := currency.ParseCurrency(r.TotalPriceCurrency)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]orderitem.OrderItem, len(r.OrderItems))
-	for i := range r.OrderItems {
-		item, err := r.OrderItems[i].toModel()
-		if err != nil {
-			return nil, err
-		}
-		items[i] = *item
-	}
-
-	return &order.Order{
-		CustomerID:         r.CustomerID,
-		DeliveryAddress:    r.DeliveryAddress,
-		TotalPriceCents:    r.TotalPriceCents,
-		TotalPriceCurrency: cur,
-		CreatedAt:          r.CreatedAt,
-		UpdatedAt:          r.UpdatedAt,
-		OrderItems:         items,
-	}, nil
-}
-
-// createOrderRequest represents a create iorderrepo request.
-type createOrderRequest struct {
-	Orders []orderInCreateOrderRequest `json:"orders" validate:"required,min=1,dive"`
-}
-
-// Validate validates the create iorderrepo request.
-func (r *createOrderRequest) Validate() error {
-	return validator.New().Struct(r)
-}
-
-// BatchInsert handles the batch insert request.
+// BatchInsert handles the batch insert request using protobuf types.
 func BatchInsert(w http.ResponseWriter, r *http.Request, service service) {
-	ordersReq := createOrderRequest{}
-	if err := json.NewDecoder(r.Body).Decode(&ordersReq); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	var batchReq pb.BatchInsertRequest
+
+	// Read and decode JSON request to protobuf message
+	decoder := json.NewDecoder(r.Body)
+	var jsonReq map[string]interface{}
+	if err := decoder.Decode(&jsonReq); err != nil {
+		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
 		slog.Error("Error decoding request body for batch insert", "error", err)
 
 		return
 	}
 
-	if err := ordersReq.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		slog.Error("Error validating request body for batch insert", "error", err)
+	jsonBytes, _ := json.Marshal(jsonReq)
+	if err := protojson.Unmarshal(jsonBytes, &batchReq); err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		slog.Error("Error unmarshaling request body for batch insert", "error", err)
 
 		return
 	}
 
-	orders := make([]order.Order, len(ordersReq.Orders))
-	for i, req := range ordersReq.Orders {
-		model, err := req.toModel()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			slog.Error("Error converting model request to model", "error", err)
+	// Convert protobuf to internal models
+	orders, err := converters.BatchInsertRequestFromProto(&batchReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error("Error converting protobuf request to models", "error", err)
 
-			return
-		}
-		orders[i] = *model
+		return
 	}
 
+	// Call service
 	insertedOrders, err := service.BatchInsert(r.Context(), orders)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -127,8 +57,19 @@ func BatchInsert(w http.ResponseWriter, r *http.Request, service service) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(insertedOrders); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		slog.Error("Error sending response for batch insert", "error", err)
+	// Convert response to protobuf and send as JSON
+	response := converters.BatchInsertResponseToProto(insertedOrders)
+	w.Header().Set("Content-Type", "application/json")
+
+	jsonData, err := protojson.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
+		slog.Error("Error marshaling response for batch insert", "error", err)
+
+		return
+	}
+
+	if _, err := w.Write(jsonData); err != nil {
+		slog.Error("Error writing response for batch insert", "error", err)
 	}
 }

@@ -14,7 +14,7 @@ tasks:
     desc: Generate all proto files using buf
     cmds:
       - echo "Generating proto files with buf..."
-      - mkdir -p internal/transport/grpc/pb
+      - mkdir -p pkg/api
       - mkdir -p api/swagger
       - cd ../contracts && buf mod update
       - cd ../contracts && buf generate

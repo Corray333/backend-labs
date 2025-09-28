@@ -9,6 +9,7 @@ services:
       POSTGRES_INITDB_ARGS: --auth=md5
     volumes:
       - order-pgdata:/var/lib/postgresql/data/
+
   order-pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
@@ -34,6 +35,7 @@ services:
       - ./configs/order-svc/local.yml:/etc/order-svc/config.yml
     depends_on:
       - order-pgbouncer
+      - rabbitmq
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine

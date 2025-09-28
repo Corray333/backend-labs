@@ -1,10 +1,10 @@
 version: v1
 plugins:
   - plugin: buf.build/protocolbuffers/go
-    out: ../order-svc/internal/transport/grpc/pb
+    out: ../order-svc/pkg/api
     opt: paths=source_relative
   - plugin: buf.build/grpc/go
-    out: ../order-svc/internal/transport/grpc/pb
+    out: ../order-svc/pkg/api
     opt: paths=source_relative
   - plugin: buf.build/grpc-ecosystem/openapiv2
     out: ../order-svc/api/swagger

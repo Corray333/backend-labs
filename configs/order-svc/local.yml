@@ -22,3 +22,13 @@ server:
         - "X-CSRF-Token"
       allow_credentials: true
       max_age: 300
+  grpc:
+    port: "9001"
+    keepalive:
+      max_connection_idle: 15    # minutes
+      max_connection_age: 30     # minutes
+      max_connection_age_grace: 5 # seconds
+      time: 30                   # seconds
+      timeout: 5                 # seconds
+      min_time: 30               # seconds
+      permit_without_stream: false
