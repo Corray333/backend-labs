@@ -1,2 +1,4 @@
 .env
 .idea
+third_party
+.claude

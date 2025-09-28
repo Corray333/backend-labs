@@ -13,13 +13,13 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   info: {
     title: "Order API";
     version: "1.0";
-    description: "API для управления заказами";
+    description: "Order Service API";
     contact: {
-      name: "Your Team";
-      email: "team@example.com";
+      name: "Mark Anikin";
+      email: "mark.corray.off@gmail.com";
     };
   };
-  host: "localhost:8080";
+  host: "localhost:3001";
   schemes: HTTP;
   schemes: HTTPS;
   consumes: "application/json";
@@ -71,12 +71,12 @@ service OrderService {
   // Создать заказы пакетно
   rpc BatchInsert(BatchInsertRequest) returns (BatchInsertResponse) {
     option (google.api.http) = {
-      post: "/v1/api/orders"
+      post: "/api/order-service/v1/orders"
       body: "*"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Создать заказы пакетно";
-      description: "Создает новые заказы в системе пакетно";
+      summary: "Создать заказы";
+      description: "Создает новые заказы в системе батчами";
       tags: "Orders";
     };
   }
@@ -84,7 +84,7 @@ service OrderService {
   // Получить список заказов
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse) {
     option (google.api.http) = {
-      get: "/v1/api/orders"
+      get: "/api/order-service/v1/orders"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Получить список заказов";

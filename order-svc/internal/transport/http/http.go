@@ -56,8 +56,8 @@ func (h *HTTPTransport) Shutdown(ctx context.Context) error {
 
 // RegisterRoutes registers the routes for the HTTPTransport.
 func (h *HTTPTransport) RegisterRoutes() {
-	h.router.Get("/v1/api/orders", h.getOrders)
-	h.router.Post("/v1/api/orders", h.batchInsert)
+	h.router.Get("/api/order-service/v1/orders", h.getOrders)
+	h.router.Post("/api/order-service/v1/orders", h.batchInsert)
 }
 
 // batchInsert handles the batch insert request.

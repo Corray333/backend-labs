@@ -1,0 +1,13 @@
+version: v1
+plugins:
+  - plugin: buf.build/protocolbuffers/go
+    out: ../order-svc/internal/transport/grpc/pb
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/go
+    out: ../order-svc/internal/transport/grpc/pb
+    opt: paths=source_relative
+  - plugin: buf.build/grpc-ecosystem/openapiv2
+    out: ../order-svc/api/swagger
+    opt:
+      - logtostderr=true
+      - json_names_for_fields=false
