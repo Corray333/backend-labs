@@ -6,41 +6,36 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/corray333/backend-labs/order/internal/service/models/order"
-	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
-	createorder "github.com/corray333/backend-labs/order/internal/transport/http/v1/create_order"
-	listorders "github.com/corray333/backend-labs/order/internal/transport/http/v1/list_orders"
+	v1 "github.com/corray333/backend-labs/order/pkg/api/v1"
 	"github.com/corray333/backend-labs/order/pkg/http/middleware/trace"
 	"github.com/corray333/backend-labs/order/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/spf13/viper"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
-
-// service is an interface for the service layer.
-type service interface {
-	GetOrders(ctx context.Context, model orderitem.QueryOrderItemsModel) ([]order.Order, error)
-	BatchInsert(ctx context.Context, orders []order.Order) ([]order.Order, error)
-}
 
 // HTTPTransport represents the HTTP transport layer.
 type HTTPTransport struct {
-	server  *http.Server
-	router  *chi.Mux
-	service service
+	server     *http.Server
+	router     *chi.Mux
+	grpcServer v1.OrderServiceServer
+	gatewayMux *runtime.ServeMux
 }
 
 // NewHTTPTransport creates a new HTTPTransport.
-func NewHTTPTransport(service service) *HTTPTransport {
+func NewHTTPTransport(grpcServer v1.OrderServiceServer) *HTTPTransport {
 	router := newRouter()
-	router.Use(trace.NewTraceMiddleware)
+	gatewayMux := runtime.NewServeMux()
 	server := newServer(router)
 
 	return &HTTPTransport{
-		server:  server,
-		router:  router,
-		service: service,
+		server:     server,
+		router:     router,
+		grpcServer: grpcServer,
+		gatewayMux: gatewayMux,
 	}
 }
 
@@ -55,21 +50,26 @@ func (h *HTTPTransport) Shutdown(ctx context.Context) error {
 }
 
 // RegisterRoutes registers the routes for the HTTPTransport.
-
-// RegisterRoutes registers the routes for the HTTPTransport.
 func (h *HTTPTransport) RegisterRoutes() {
-	h.router.Get("/api/order-service/v1/orders", h.getOrders)
-	h.router.Post("/api/order-service/v1/orders", h.batchInsert)
-}
+	// Register grpc-gateway handlers
+	if err := v1.RegisterOrderServiceHandlerServer(context.Background(), h.gatewayMux, h.grpcServer); err != nil {
+		slog.Error("Failed to register grpc-gateway handler", "error", err)
+		panic(err)
+	}
 
-// batchInsert handles the batch insert request.
-func (h *HTTPTransport) batchInsert(w http.ResponseWriter, r *http.Request) {
-	createorder.BatchInsert(w, r, h.service)
-}
+	// Serve Swagger UI
+	h.router.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/v1/order.swagger.json"),
+	))
 
-// getOrders handles the get orders request.
-func (h *HTTPTransport) getOrders(w http.ResponseWriter, r *http.Request) {
-	listorders.ListOrders(w, r, h.service)
+	// Serve Swagger JSON file
+	h.router.Handle(
+		"/swagger/v1/*",
+		http.StripPrefix("/swagger/", http.FileServer(http.Dir("./api/swagger"))),
+	)
+
+	// Mount the gateway mux to the router
+	h.router.Mount("/", h.gatewayMux)
 }
 
 // newRouter creates a new router for the HTTPTransport.
@@ -77,6 +77,7 @@ func newRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.RequestID)
 	router.Use(logger.NewLoggerMiddleware(slog.Default()))
+	router.Use(trace.NewTraceMiddleware)
 
 	allowedOrigins := viper.GetStringSlice("server.http.cors.allowed_origins")
 	allowedMethods := viper.GetStringSlice("server.http.cors.allowed_methods")

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 	"github.com/jmoiron/sqlx"
@@ -67,12 +67,14 @@ func OrderItemDalFromModel(oi *orderitem.OrderItem) *OrderItemDal {
 // PostgresOrderItemRepository represents a Postgres iorderrepo item repository.
 type PostgresOrderItemRepository struct {
 	conn sqlx.ExtContext
+	sb   sq.StatementBuilderType
 }
 
 // NewPostgresOrderItemRepository creates a new Postgres iorderrepo item repository.
 func NewPostgresOrderItemRepository(pgClient sqlx.ExtContext) *PostgresOrderItemRepository {
 	return &PostgresOrderItemRepository{
 		conn: pgClient,
+		sb:   sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
 
@@ -84,43 +86,6 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 	if len(orderItems) == 0 {
 		return []orderitem.OrderItem{}, nil
 	}
-
-	sql := `
-		INSERT INTO order_items (
-			order_id,
-			product_id,
-			quantity,
-			product_title,
-			product_url,
-			price_cents,
-			price_currency,
-			created_at,
-			updated_at
-		)
-		SELECT
-			order_id,
-			product_id,
-			quantity,
-			product_title,
-			product_url,
-			price_cents,
-			price_currency,
-			created_at,
-			updated_at
-		FROM unnest($1::bigint[], $2::bigint[], $3::int[], $4::text[], $5::text[], $6::bigint[], $7::text[], $8::timestamp[], $9::timestamp[])
-		AS t(order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at)
-		RETURNING
-			id,
-			order_id,
-			product_id,
-			quantity,
-			product_title,
-			product_url,
-			price_cents,
-			price_currency,
-			created_at,
-			updated_at
-	`
 
 	// Prepare arrays for bulk insert
 	orderIds := make([]int64, len(orderItems))
@@ -143,6 +108,41 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 		priceCurrencies[i] = oi.PriceCurrency.String()
 		createdAts[i] = oi.CreatedAt
 		updatedAts[i] = oi.UpdatedAt
+	}
+
+	// For complex unnest queries, we use raw SQL with squirrel
+	query := r.sb.
+		Insert("order_items").
+		Columns(
+			"order_id",
+			"product_id",
+			"quantity",
+			"product_title",
+			"product_url",
+			"price_cents",
+			"price_currency",
+			"created_at",
+			"updated_at",
+		).
+		Select(sq.
+			Select(
+				"order_id",
+				"product_id",
+				"quantity",
+				"product_title",
+				"product_url",
+				"price_cents",
+				"price_currency",
+				"created_at",
+				"updated_at",
+			).
+			From("unnest($1::bigint[], $2::bigint[], $3::int[], $4::text[], $5::text[], $6::bigint[], $7::text[], $8::timestamp[], $9::timestamp[]) AS t(order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at)"),
+		).
+		Suffix("RETURNING id, order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at")
+
+	sql, _, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build bulk insert query: %w", err)
 	}
 
 	rows, err := r.conn.QueryContext(ctx, sql,
@@ -197,60 +197,47 @@ func (r *PostgresOrderItemRepository) Query(
 	ctx context.Context,
 	filter *orderitem.QueryOrderItemsModel,
 ) ([]orderitem.OrderItem, error) {
-	sqlBuilder := strings.Builder{}
-	sqlBuilder.WriteString(`
-		SELECT
-			id,
-			order_id,
-			product_id,
-			quantity,
-			product_title,
-			product_url,
-			price_cents,
-			price_currency,
-			created_at,
-			updated_at
-		FROM order_items
-	`)
-
-	args := []interface{}{}
-	conditions := []string{}
-	argIndex := 1
+	query := r.sb.
+		Select(
+			"id",
+			"order_id",
+			"product_id",
+			"quantity",
+			"product_title",
+			"product_url",
+			"price_cents",
+			"price_currency",
+			"created_at",
+			"updated_at",
+		).
+		From("order_items")
 
 	if len(filter.Ids) > 0 {
-		conditions = append(conditions, fmt.Sprintf("id = ANY($%d)", argIndex))
-		args = append(args, pq.Array(filter.Ids))
-		argIndex++
+		query = query.Where(sq.Eq{"id": filter.Ids})
 	}
 
 	if len(filter.OrderIds) > 0 {
-		conditions = append(conditions, fmt.Sprintf("order_id = ANY($%d)", argIndex))
-		args = append(args, pq.Array(filter.OrderIds))
-		argIndex++
+		query = query.Where(sq.Eq{"order_id": filter.OrderIds})
 	}
 
 	if len(filter.ProductIds) > 0 {
-		conditions = append(conditions, fmt.Sprintf("product_id = ANY($%d)", argIndex))
-		args = append(args, pq.Array(filter.ProductIds))
-		argIndex++
-	}
-
-	if len(conditions) > 0 {
-		sqlBuilder.WriteString(" WHERE " + strings.Join(conditions, " AND "))
+		query = query.Where(sq.Eq{"product_id": filter.ProductIds})
 	}
 
 	if filter.Limit > 0 {
-		sqlBuilder.WriteString(fmt.Sprintf(" LIMIT $%d", argIndex))
-		args = append(args, filter.Limit)
-		argIndex++
+		query = query.Limit(uint64(filter.Limit))
 	}
 
 	if filter.Offset > 0 {
-		sqlBuilder.WriteString(fmt.Sprintf(" OFFSET $%d", argIndex))
-		args = append(args, filter.Offset)
+		query = query.Offset(uint64(filter.Offset))
 	}
 
-	rows, err := r.conn.QueryContext(ctx, sqlBuilder.String(), args...)
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := r.conn.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query iorderrepo items: %w", err)
 	}

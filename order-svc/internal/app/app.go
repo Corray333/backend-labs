@@ -40,10 +40,11 @@ func MustNewApp() *App {
 		ordersvc.WithAuditor(auditRabbitMQRepository),
 	)
 
-	transport := httptransport.NewHTTPTransport(orderSvc)
-	transport.RegisterRoutes()
-
 	grpcTransport := grpctransport.NewGRPCTransport(orderSvc)
+
+	// Create HTTP transport with the gRPC server implementation
+	transport := httptransport.NewHTTPTransport(grpcTransport.GetOrderServer())
+	transport.RegisterRoutes()
 
 	return &App{
 		orderSvc:       orderSvc,

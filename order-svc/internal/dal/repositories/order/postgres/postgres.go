@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
@@ -85,12 +86,14 @@ func (a OrderArray) Value() (driver.Value, error) {
 // PostgresOrderRepository represents a Postgres iorderrepo repository.
 type PostgresOrderRepository struct {
 	conn sqlx.ExtContext
+	sb   sq.StatementBuilderType
 }
 
 // NewPostgresOrderRepository creates a new Postgres iorderrepo repository.
 func NewPostgresOrderRepository(pgClient sqlx.ExtContext) *PostgresOrderRepository {
 	return &PostgresOrderRepository{
 		conn: pgClient,
+		sb:   sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
 
@@ -106,34 +109,6 @@ func (r *PostgresOrderRepository) BulkInsert(
 		return []order.Order{}, nil
 	}
 
-	sql := `
-		INSERT INTO orders (
-			customer_id,
-			delivery_address,
-			total_price_cents,
-			total_price_currency,
-			created_at,
-			updated_at
-		)
-		SELECT
-			customer_id,
-			delivery_address,
-			total_price_cents,
-			total_price_currency,
-			created_at,
-			updated_at
-		FROM unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[], $5::timestamp[], $6::timestamp[])
-		AS t(customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at)
-		RETURNING
-			id,
-			customer_id,
-			delivery_address,
-			total_price_cents,
-			total_price_currency,
-			created_at,
-			updated_at
-	`
-
 	customerIds := make([]int64, len(orders))
 	deliveryAddresses := make([]string, len(orders))
 	totalPriceCents := make([]int64, len(orders))
@@ -148,6 +123,35 @@ func (r *PostgresOrderRepository) BulkInsert(
 		totalPriceCurrencies[i] = o.TotalPriceCurrency.String()
 		createdAts[i] = o.CreatedAt
 		updatedAts[i] = o.UpdatedAt
+	}
+
+	// For complex unnest queries, we use raw SQL with squirrel's Expr
+	query := r.sb.
+		Insert("orders").
+		Columns(
+			"customer_id",
+			"delivery_address",
+			"total_price_cents",
+			"total_price_currency",
+			"created_at",
+			"updated_at",
+		).
+		Select(sq.
+			Select(
+				"customer_id",
+				"delivery_address",
+				"total_price_cents",
+				"total_price_currency",
+				"created_at",
+				"updated_at",
+			).
+			From("unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[], $5::timestamp[], $6::timestamp[]) AS t(customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at)"),
+		).
+		Suffix("RETURNING id, customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at")
+
+	sql, _, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build bulk insert query: %w", err)
 	}
 
 	rows, err := r.conn.QueryContext(ctx, sql,
@@ -208,51 +212,40 @@ func (r *PostgresOrderRepository) Query(
 	ctx, span := otel.Tracer("dal").Start(ctx, "DAL.GetOrders")
 	defer span.End()
 
-	sqlBuilder := strings.Builder{}
-	sqlBuilder.WriteString(`
-		SELECT
-			id,
-			customer_id,
-			delivery_address,
-			total_price_cents,
-			total_price_currency,
-			created_at,
-			updated_at
-		FROM orders
-	`)
-
-	args := make([]any, 0, 5)
-	conditions := make([]string, 0, 5)
-	argIndex := 1
+	query := r.sb.
+		Select(
+			"id",
+			"customer_id",
+			"delivery_address",
+			"total_price_cents",
+			"total_price_currency",
+			"created_at",
+			"updated_at",
+		).
+		From("orders")
 
 	if len(filter.Ids) > 0 {
-		conditions = append(conditions, fmt.Sprintf("id = ANY($%d)", argIndex))
-		args = append(args, pq.Array(filter.Ids))
-		argIndex++
+		query = query.Where(sq.Eq{"id": filter.Ids})
 	}
 
 	if len(filter.CustomerIds) > 0 {
-		conditions = append(conditions, fmt.Sprintf("customer_id = ANY($%d)", argIndex))
-		args = append(args, pq.Array(filter.CustomerIds))
-		argIndex++
-	}
-
-	if len(conditions) > 0 {
-		sqlBuilder.WriteString(" WHERE " + strings.Join(conditions, " AND "))
+		query = query.Where(sq.Eq{"customer_id": filter.CustomerIds})
 	}
 
 	if filter.Limit > 0 {
-		sqlBuilder.WriteString(fmt.Sprintf(" LIMIT $%d", argIndex))
-		args = append(args, filter.Limit)
-		argIndex++
+		query = query.Limit(uint64(filter.Limit))
 	}
 
 	if filter.Offset > 0 {
-		sqlBuilder.WriteString(fmt.Sprintf(" OFFSET $%d", argIndex))
-		args = append(args, filter.Offset)
+		query = query.Offset(uint64(filter.Offset))
 	}
 
-	rows, err := r.conn.QueryContext(ctx, sqlBuilder.String(), args...)
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := r.conn.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query orders: %w", err)
 	}

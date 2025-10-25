@@ -82,6 +82,11 @@ func (g *GRPCTransport) RegisterServices() {
 	pb.RegisterOrderServiceServer(g.server, g.orderServer)
 }
 
+// GetOrderServer returns the OrderServer instance.
+func (g *GRPCTransport) GetOrderServer() *OrderServer {
+	return g.orderServer
+}
+
 // newGRPCServer creates a new gRPC server with default settings.
 func newGRPCServer() *grpc.Server {
 	keepaliveParams := keepalive.ServerParameters{

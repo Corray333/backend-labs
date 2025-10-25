@@ -6,6 +6,11 @@ plugins:
   - plugin: buf.build/grpc/go
     out: ../order-svc/pkg/api
     opt: paths=source_relative
+  - plugin: buf.build/grpc-ecosystem/gateway
+    out: ../order-svc/pkg/api
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
   - plugin: buf.build/grpc-ecosystem/openapiv2
     out: ../order-svc/api/swagger
     opt:

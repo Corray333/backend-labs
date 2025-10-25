@@ -17,6 +17,7 @@ WORKDIR /app
 
 COPY --from=builder /app/cmd/main ./cmd/main
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/api/swagger ./api/swagger
 
 
 CMD ["./cmd/main"]
