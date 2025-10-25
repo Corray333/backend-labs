@@ -13,6 +13,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
+	"go.opentelemetry.io/otel"
 )
 
 // OrderService is a service for managing orders.
@@ -70,6 +71,9 @@ func (s *OrderService) BatchInsert(
 	ctx context.Context,
 	orders []order.Order,
 ) ([]order.Order, error) {
+	ctx, span := otel.Tracer("service").Start(ctx, "Service.CreateOrders")
+	defer span.End()
+
 	now := time.Now()
 
 	work := s.newUOW()
@@ -124,6 +128,9 @@ func (s *OrderService) GetOrders(
 	ctx context.Context,
 	model orderitem.QueryOrderItemsModel,
 ) ([]order.Order, error) {
+	ctx, span := otel.Tracer("service").Start(ctx, "Service.GetOrders")
+	defer span.End()
+
 	orderQuery := &order.QueryOrdersModel{
 		Ids:         model.Ids,
 		CustomerIds: model.CustomerIds,

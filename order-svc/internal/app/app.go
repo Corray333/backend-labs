@@ -12,6 +12,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/dal/repositories/audit"
+	"github.com/corray333/backend-labs/order/internal/otel"
 	"github.com/corray333/backend-labs/order/internal/service/services/ordersvc"
 	grpctransport "github.com/corray333/backend-labs/order/internal/transport/grpc"
 	httptransport "github.com/corray333/backend-labs/order/internal/transport/http"
@@ -24,10 +25,12 @@ type App struct {
 	postgresClient *postgres.Client
 	rabbitMqClient *rabbitmq.Client
 	grpcTransport  *grpctransport.GRPCTransport
+	otelController *otel.OtelController
 }
 
 // MustNewApp creates a new application.
 func MustNewApp() *App {
+	otelController := otel.MustInitOtel()
 	rabbitMqClient := rabbitmq.MustNewClient()
 	postgresClient := postgres.MustNewClient()
 	auditRabbitMQRepository := audit.NewAuditRabbitMQRepository(rabbitMqClient, postgresClient)
@@ -48,6 +51,7 @@ func MustNewApp() *App {
 		postgresClient: postgresClient,
 		rabbitMqClient: rabbitMqClient,
 		grpcTransport:  grpcTransport,
+		otelController: otelController,
 	}
 }
 
@@ -84,21 +88,26 @@ func (a *App) gracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var wg sync.WaitGroup
+	if err := a.transport.Shutdown(ctx); err != nil {
+		slog.Error("HTTP server shutdown error", "error", err)
+	} else {
+		slog.Info("HTTP server stopped gracefully")
+	}
 
-	wg.Go(func() {
-		if err := a.transport.Shutdown(ctx); err != nil {
-			slog.Error("HTTP server shutdown error", "error", err)
-		} else {
-			slog.Info("HTTP server stopped gracefully")
-		}
-	})
+	var wg sync.WaitGroup
 
 	wg.Go(func() {
 		if err := a.rabbitMqClient.Close(); err != nil {
 			slog.Error("RabbitMQ connection close error", "error", err)
 		} else {
 			slog.Info("RabbitMQ connection closed gracefully")
+		}
+	})
+	wg.Go(func() {
+		if err := a.otelController.Shutdown(); err != nil {
+			slog.Error("Otel trace provider connection close error", "error", err)
+		} else {
+			slog.Info("Otel trace provider connection closed gracefully")
 		}
 	})
 

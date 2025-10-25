@@ -10,6 +10,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 	createorder "github.com/corray333/backend-labs/order/internal/transport/http/v1/create_order"
 	listorders "github.com/corray333/backend-labs/order/internal/transport/http/v1/list_orders"
+	"github.com/corray333/backend-labs/order/pkg/http/middleware/trace"
 	"github.com/corray333/backend-labs/order/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -33,6 +34,7 @@ type HTTPTransport struct {
 // NewHTTPTransport creates a new HTTPTransport.
 func NewHTTPTransport(service service) *HTTPTransport {
 	router := newRouter()
+	router.Use(trace.NewTraceMiddleware)
 	server := newServer(router)
 
 	return &HTTPTransport{

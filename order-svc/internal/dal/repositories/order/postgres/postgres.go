@@ -13,6 +13,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel"
 )
 
 // OrderDal represents iorderrepo data access layer model.
@@ -98,6 +99,9 @@ func (r *PostgresOrderRepository) BulkInsert(
 	ctx context.Context,
 	orders []order.Order,
 ) ([]order.Order, error) {
+	ctx, span := otel.Tracer("dal").Start(ctx, "DAL.CreateOrders")
+	defer span.End()
+
 	if len(orders) == 0 {
 		return []order.Order{}, nil
 	}
@@ -201,6 +205,9 @@ func (r *PostgresOrderRepository) Query(
 	ctx context.Context,
 	filter *order.QueryOrdersModel,
 ) ([]order.Order, error) {
+	ctx, span := otel.Tracer("dal").Start(ctx, "DAL.GetOrders")
+	defer span.End()
+
 	sqlBuilder := strings.Builder{}
 	sqlBuilder.WriteString(`
 		SELECT

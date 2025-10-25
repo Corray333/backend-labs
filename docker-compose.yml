@@ -5,10 +5,18 @@ services:
       POSTGRES_DB: ${ORDER_PG_DB}
       POSTGRES_USER: ${ORDER_PG_USER}
       POSTGRES_PASSWORD: ${ORDER_PG_PASSWORD}
-      POSTGRES_HOST_AUTH_METHOD: md5
-      POSTGRES_INITDB_ARGS: --auth=md5
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - order-pgdata:/var/lib/postgresql/data/
+      - ./configs/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   order-pgbouncer:
     image: edoburu/pgbouncer:latest
@@ -18,9 +26,24 @@ services:
       - DB_USER=${ORDER_PG_USER}
       - DB_PASSWORD=${ORDER_PG_PASSWORD}
       - DB_NAME=${ORDER_PG_DB}
-      - ADMIN_USERS=postgres,admin
+      - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_IDLE_TRANSACTION_TIMEOUT=60
+      - PGBOUNCER_POOL_MODE=transaction
+      - PGBOUNCER_MIN_POOL_SIZE=5
+      - PGBOUNCER_SERVER_RESET_QUERY_ALWAYS=0
+      - PGBOUNCER_SERVER_LIFETIME=3600
+      - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+      - PGBOUNCER_MAX_DB_CONNECTIONS=50
+      - PGBOUNCER_MAX_CLIENT_CONN=10000
+      - PGBOUNCER_RESERVE_POOL_SIZE=5
+      - PGBOUNCER_MIN_POOL_SIZE=2
+      - PGBOUNCER_DEFAULT_POOL_SIZE=16
+      - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits
+    volumes:
+      - ./configs/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
     depends_on:
-      - order-pg
+      order-pg:
+        condition: service_healthy
     ports:
       - 5432:5432
 
@@ -37,6 +60,7 @@ services:
     depends_on:
       - order-pgbouncer
       - rabbitmq
+      - jaeger
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -49,6 +73,16 @@ services:
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "6831:6831/udp"
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
 
 volumes:
   order-pgdata:
