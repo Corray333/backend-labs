@@ -6,7 +6,3 @@
 *.log
 *.tmp
 
-# or folders
-dist/
-build/
-out/

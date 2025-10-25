@@ -62,6 +62,18 @@ services:
       - rabbitmq
       - jaeger
 
+  order-audit-consumer-svc:
+    build:
+      context: .
+      dockerfile: ./order-audit-consumer-svc/Dockerfile
+    volumes:
+      - .env:/app/.env
+      - ./configs/order-audit-consumer-svc/local.yml:/etc/consumer-svc/config.yml
+    depends_on:
+      - order-svc
+      - rabbitmq
+      - jaeger
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq

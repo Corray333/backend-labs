@@ -1,0 +1,11 @@
+rabbitmq:
+  queue: "oms.iorderrepo.created"
+  consumer_tag: "consumer-svc"
+  auto_ack: false
+  exclusive: false
+  no_local: false
+  no_wait: false
+
+grpc:
+  order_service_addr: "order-svc:50051"
+  timeout_seconds: 30
