@@ -1,5 +1,5 @@
 rabbitmq:
-  queue: "oms.iorderrepo.created"
+  queue: "oms.order.created"
   consumer_tag: "consumer-svc"
   auto_ack: false
   exclusive: false

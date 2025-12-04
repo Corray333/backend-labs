@@ -86,6 +86,8 @@ func (c *Client) SaveAuditLogs(ctx context.Context, auditLogs []models.AuditLogO
 
 	resp, err := c.client.SaveAuditLog(ctx, req)
 	if err != nil {
+		slog.Error("Failed to save audit logs", "error", err)
+
 		return fmt.Errorf("failed to save audit logs via gRPC: %w", err)
 	}
 

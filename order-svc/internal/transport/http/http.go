@@ -57,12 +57,10 @@ func (h *HTTPTransport) RegisterRoutes() {
 		panic(err)
 	}
 
-	// Serve Swagger UI
 	h.router.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/v1/order.swagger.json"),
 	))
 
-	// Serve Swagger JSON file
 	h.router.Handle(
 		"/swagger/v1/*",
 		http.StripPrefix("/swagger/", http.FileServer(http.Dir("./api/swagger"))),

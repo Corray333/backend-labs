@@ -8,7 +8,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/yourorg/yourproject/api/v1";
 
-// Swagger документация для API
+// Swagger documentation for API
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   info: {
     title: "Order API";
@@ -26,7 +26,7 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   produces: "application/json";
 };
 
-// Сообщения
+// Messages
 message OrderItem {
   int64 product_id = 1;
   int32 quantity = 2;
@@ -84,42 +84,38 @@ message SaveAuditLogResponse {
   repeated AuditLogOrder audit_logs = 1;
 }
 
-// Сервис с HTTP аннотациями
 service OrderService {
-  // Создать заказы пакетно
   rpc BatchInsert(BatchInsertRequest) returns (BatchInsertResponse) {
     option (google.api.http) = {
       post: "/api/order-service/v1/orders"
       body: "*"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Создать заказы";
-      description: "Создает новые заказы в системе батчами";
+      summary: "Create orders";
+      description: "Creates new orders in the system in batches";
       tags: "Orders";
     };
   }
 
-  // Получить список заказов
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse) {
     option (google.api.http) = {
       get: "/api/order-service/v1/orders"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Получить список заказов";
-      description: "Получает список заказов с возможностью фильтрации по ID заказов и клиентов";
+      summary: "List orders";
+      description: "Retrieves a list of orders with filtering by order IDs and customer IDs";
       tags: "Orders";
     };
   }
 
-  // Сохранить аудит логи
   rpc SaveAuditLog(SaveAuditLogRequest) returns (SaveAuditLogResponse) {
     option (google.api.http) = {
       post: "/api/order-service/v1/audit-logs"
       body: "*"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Сохранить аудит логи";
-      description: "Сохраняет аудит логи заказов в базу данных";
+      summary: "Save audit logs";
+      description: "Saves order audit logs to the database";
       tags: "Audit";
     };
   }

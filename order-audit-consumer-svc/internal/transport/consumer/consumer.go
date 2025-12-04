@@ -58,9 +58,6 @@ func NewConsumer(client *rabbitmq.Client, service service) *Consumer {
 
 // Run starts consuming messages from RabbitMQ.
 func (c *Consumer) Run(ctx context.Context) error {
-	ctx, span := otel.Tracer("consumer").Start(ctx, "Consumer.Run")
-	defer span.End()
-
 	consumerTag := viper.GetString("rabbitmq.consumer_tag")
 	if consumerTag == "" {
 		consumerTag = "consumer-svc"
@@ -81,7 +78,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 	slog.Info("Consumer started", "queue", c.queue.Name, "consumer_tag", consumerTag)
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(10) // Limit concurrent message processing
+	g.SetLimit(50)
 
 	go func() {
 		for {

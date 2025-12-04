@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
-	"github.com/lib/pq"
 	"github.com/streadway/amqp"
 	"golang.org/x/sync/errgroup"
 )
@@ -26,7 +26,7 @@ func NewAuditRabbitMQRepository(
 	pgClient *postgres.Client,
 ) *AuditRabbitMQRepository {
 	queue, err := client.DeclareQueue(rabbitmq.DeclareQueueConfig{
-		Name:       "oms.iorderrepo.created",
+		Name:       "oms.order.created",
 		Durable:    false,
 		Exclusive:  false,
 		AutoDelete: false,
@@ -43,10 +43,10 @@ func NewAuditRabbitMQRepository(
 }
 
 func (r *AuditRabbitMQRepository) LogBatchInsert(ctx context.Context, orders []order.Order) error {
-	auditCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	auditCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	g, ctx := errgroup.WithContext(auditCtx)
-	g.SetLimit(3)
+	g.SetLimit(5)
 
 	for _, ord := range orders {
 		g.Go(func() error {
@@ -71,7 +71,7 @@ func (r *AuditRabbitMQRepository) LogBatchInsert(ctx context.Context, orders []o
 	return g.Wait()
 }
 
-// SaveAuditLogs saves audit log entries to the PostgreSQL database using bulk insert with unnest().
+// SaveAuditLogs saves audit log entries to the PostgreSQL database using squirrel bulk insert.
 func (r *AuditRabbitMQRepository) SaveAuditLogs(
 	ctx context.Context,
 	auditLogs []auditlog.AuditLogOrder,
@@ -80,51 +80,34 @@ func (r *AuditRabbitMQRepository) SaveAuditLogs(
 		return nil
 	}
 
-	query := `
-		INSERT INTO audit_log_order (
-			order_id,
-			order_item_id,
-			customer_id,
-			order_status,
-			created_at,
-			updated_at
+	builder := sq.Insert("audit_log_order").
+		Columns(
+			"order_id",
+			"order_item_id",
+			"customer_id",
+			"order_status",
+			"created_at",
+			"updated_at",
+		).
+		PlaceholderFormat(sq.Dollar)
+
+	for _, auditLog := range auditLogs {
+		builder = builder.Values(
+			auditLog.OrderID,
+			auditLog.OrderItemID,
+			auditLog.CustomerID,
+			auditLog.OrderStatus,
+			auditLog.CreatedAt,
+			auditLog.UpdatedAt,
 		)
-		SELECT
-			order_id,
-			order_item_id,
-			customer_id,
-			order_status,
-			created_at,
-			updated_at
-		FROM unnest($1::bigint[], $2::bigint[], $3::bigint[], $4::text[], $5::timestamp[], $6::timestamp[])
-		AS t(order_id, order_item_id, customer_id, order_status, created_at, updated_at)
-	`
-
-	// Prepare arrays for bulk insert
-	orderIds := make([]int64, len(auditLogs))
-	orderItemIds := make([]int64, len(auditLogs))
-	customerIds := make([]int64, len(auditLogs))
-	orderStatuses := make([]string, len(auditLogs))
-	createdAts := make([]time.Time, len(auditLogs))
-	updatedAts := make([]time.Time, len(auditLogs))
-
-	for i, auditLog := range auditLogs {
-		orderIds[i] = auditLog.OrderID
-		orderItemIds[i] = auditLog.OrderItemID
-		customerIds[i] = auditLog.CustomerID
-		orderStatuses[i] = auditLog.OrderStatus
-		createdAts[i] = auditLog.CreatedAt
-		updatedAts[i] = auditLog.UpdatedAt
 	}
 
-	_, err := r.pgClient.DB().ExecContext(ctx, query,
-		pq.Array(orderIds),
-		pq.Array(orderItemIds),
-		pq.Array(customerIds),
-		pq.Array(orderStatuses),
-		pq.Array(createdAts),
-		pq.Array(updatedAts),
-	)
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build audit logs insert query: %w", err)
+	}
+
+	_, err = r.pgClient.DB().ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to bulk insert audit logs: %w", err)
 	}

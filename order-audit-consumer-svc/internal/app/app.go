@@ -73,28 +73,24 @@ func (a *App) gracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Step 1: Stop consumer (stop receiving new messages)
 	if err := a.consumerTransp.Shutdown(); err != nil {
 		slog.Error("Consumer shutdown error", "error", err)
 	} else {
 		slog.Info("Consumer stopped gracefully")
 	}
 
-	// Step 2: Close RabbitMQ connection
 	if err := a.rabbitMqClient.Close(); err != nil {
 		slog.Error("RabbitMQ connection close error", "error", err)
 	} else {
 		slog.Info("RabbitMQ connection closed gracefully")
 	}
 
-	// Step 3: Close gRPC client
 	if err := a.grpcClient.Close(); err != nil {
 		slog.Error("gRPC client close error", "error", err)
 	} else {
 		slog.Info("gRPC client closed gracefully")
 	}
 
-	// Step 4: Shutdown OpenTelemetry
 	if err := a.otelController.Shutdown(); err != nil {
 		slog.Error("Otel trace provider connection close error", "error", err)
 	} else {

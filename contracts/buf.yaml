@@ -1,5 +1,5 @@
 version: v1
-name: buf.build/yourorg/contracts
+name: buf.build/labs/contracts
 deps:
   - buf.build/googleapis/googleapis
   - buf.build/grpc-ecosystem/grpc-gateway
