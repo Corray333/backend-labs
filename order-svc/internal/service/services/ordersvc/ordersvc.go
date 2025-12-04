@@ -108,17 +108,22 @@ func (s *OrderService) BatchInsert(
 		orders[i].OrderItems = orderItems[i*len(orders[i].OrderItems) : (i+1)*len(orders[i].OrderItems)]
 	}
 
+	// Try to send audit logs to RabbitMQ synchronously before committing
+	err = s.auditor.LogBatchInsert(ctx, orders)
+	if err != nil {
+		// Rollback transaction if audit logging fails
+		if rbErr := work.Rollback(); rbErr != nil {
+			slog.Error("Failed to rollback transaction", "error", rbErr)
+		}
+
+		return nil, err
+	}
+
+	// Commit transaction only if audit logging succeeded
 	err = work.Commit()
 	if err != nil {
 		return nil, err
 	}
-
-	go func() {
-		err := s.auditor.LogBatchInsert(ctx, orders)
-		if err != nil {
-			slog.Error("Failed to log batch insert")
-		}
-	}()
 
 	return orders, nil
 }

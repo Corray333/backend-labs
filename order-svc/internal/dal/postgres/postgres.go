@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -47,7 +48,8 @@ func MustNewClient() *Client {
 		panic(err)
 	}
 
-	if err := goose.Up(db.DB, viper.GetString("postgres.migrations_path")); err != nil {
+	if err := goose.Up(db.DB, viper.GetString("postgres.migrations_path")); err != nil &&
+		!errors.Is(err, goose.ErrNoNextVersion) {
 		panic(err)
 	}
 

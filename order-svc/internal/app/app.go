@@ -12,10 +12,12 @@ import (
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/dal/repositories/audit"
+	outboxrepo "github.com/corray333/backend-labs/order/internal/dal/repositories/outbox/postgres"
 	"github.com/corray333/backend-labs/order/internal/otel"
 	"github.com/corray333/backend-labs/order/internal/service/services/ordersvc"
 	grpctransport "github.com/corray333/backend-labs/order/internal/transport/grpc"
 	httptransport "github.com/corray333/backend-labs/order/internal/transport/http"
+	"github.com/corray333/backend-labs/order/internal/worker/outbox"
 )
 
 // App represents the application.
@@ -26,6 +28,9 @@ type App struct {
 	rabbitMqClient *rabbitmq.Client
 	grpcTransport  *grpctransport.GRPCTransport
 	otelController *otel.OtelController
+	outboxWorker   *outbox.Worker
+	workerCtx      context.Context
+	workerCancel   context.CancelFunc
 }
 
 // MustNewApp creates a new application.
@@ -33,7 +38,14 @@ func MustNewApp() *App {
 	otelController := otel.MustInitOtel()
 	rabbitMqClient := rabbitmq.MustNewClient()
 	postgresClient := postgres.MustNewClient()
-	auditRabbitMQRepository := audit.NewAuditRabbitMQRepository(rabbitMqClient, postgresClient)
+
+	outboxRepository := outboxrepo.NewOutboxRepository(postgresClient)
+
+	auditRabbitMQRepository := audit.NewAuditRabbitMQRepository(
+		rabbitMqClient,
+		postgresClient,
+		outboxRepository,
+	)
 
 	orderSvc := ordersvc.MustNewOrderService(
 		ordersvc.WithPostgresClient(postgresClient),
@@ -42,9 +54,17 @@ func MustNewApp() *App {
 
 	grpcTransport := grpctransport.NewGRPCTransport(orderSvc)
 
-	// Create HTTP transport with the gRPC server implementation
 	transport := httptransport.NewHTTPTransport(grpcTransport.GetOrderServer())
 	transport.RegisterRoutes()
+
+	outboxWorker := outbox.NewWorker(
+		outboxRepository,
+		rabbitMqClient,
+		3*time.Second,
+		100,
+	)
+
+	workerCtx, workerCancel := context.WithCancel(context.Background())
 
 	return &App{
 		orderSvc:       orderSvc,
@@ -53,6 +73,9 @@ func MustNewApp() *App {
 		rabbitMqClient: rabbitMqClient,
 		grpcTransport:  grpcTransport,
 		otelController: otelController,
+		outboxWorker:   outboxWorker,
+		workerCtx:      workerCtx,
+		workerCancel:   workerCancel,
 	}
 }
 
@@ -77,6 +100,12 @@ func (a *App) Run() {
 		}
 	}()
 
+	// Start outbox worker
+	go func() {
+		slog.Info("Starting outbox worker")
+		a.outboxWorker.Start(a.workerCtx)
+	}()
+
 	<-stop
 	slog.Info("Shutdown signal received")
 
@@ -88,6 +117,11 @@ func (a *App) Run() {
 func (a *App) gracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Stop outbox worker first
+	slog.Info("Stopping outbox worker")
+	a.workerCancel()
+	slog.Info("Outbox worker stopped")
 
 	if err := a.transport.Shutdown(ctx); err != nil {
 		slog.Error("HTTP server shutdown error", "error", err)

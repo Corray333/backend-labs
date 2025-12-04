@@ -4,26 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/corray333/backend-labs/order/internal/dal/interfaces/ioutboxrepo"
 	"github.com/corray333/backend-labs/order/internal/dal/postgres"
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/service/models/auditlog"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
+	"github.com/corray333/backend-labs/order/internal/service/models/outbox"
 	"github.com/streadway/amqp"
-	"golang.org/x/sync/errgroup"
 )
 
 type AuditRabbitMQRepository struct {
-	client   *rabbitmq.Client
-	queue    amqp.Queue
-	pgClient *postgres.Client
+	client        *rabbitmq.Client
+	queue         amqp.Queue
+	pgClient      *postgres.Client
+	outboxRepo    ioutboxrepo.IOutboxRepository
+	maxRetries    int
+	retryInterval time.Duration
 }
 
 func NewAuditRabbitMQRepository(
 	client *rabbitmq.Client,
 	pgClient *postgres.Client,
+	outboxRepo ioutboxrepo.IOutboxRepository,
 ) *AuditRabbitMQRepository {
 	queue, err := client.DeclareQueue(rabbitmq.DeclareQueueConfig{
 		Name:       "oms.order.created",
@@ -36,39 +42,75 @@ func NewAuditRabbitMQRepository(
 	}
 
 	return &AuditRabbitMQRepository{
-		client:   client,
-		queue:    queue,
-		pgClient: pgClient,
+		client:        client,
+		queue:         queue,
+		pgClient:      pgClient,
+		outboxRepo:    outboxRepo,
+		maxRetries:    5,
+		retryInterval: 30 * time.Second, // 30 seconds between retries
 	}
 }
 
 func (r *AuditRabbitMQRepository) LogBatchInsert(ctx context.Context, orders []order.Order) error {
-	auditCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	g, ctx := errgroup.WithContext(auditCtx)
-	g.SetLimit(5)
+	now := time.Now()
 
 	for _, ord := range orders {
-		g.Go(func() error {
-			orderData, err := json.Marshal(ord)
-			if err != nil {
-				return err
+		orderData, err := json.Marshal(ord)
+		if err != nil {
+			slog.Error("Failed to marshal order", "order_id", ord.ID, "error", err)
+
+			return fmt.Errorf("failed to marshal order: %w", err)
+		}
+
+		// Try to publish to RabbitMQ synchronously
+		err = r.client.Channel().Publish(
+			"",
+			r.queue.Name,
+			false,
+			false,
+			amqp.Publishing{
+				ContentType: "application/json",
+				Body:        orderData,
+			},
+		)
+
+		// If publish fails, save to outbox
+		if err != nil {
+			slog.Warn(
+				"Failed to publish to RabbitMQ, saving to outbox",
+				"order_id",
+				ord.ID,
+				"error",
+				err,
+			)
+
+			outboxMsg := outbox.OutboxMessage{
+				QueueName:    r.queue.Name,
+				ExchangeName: "",
+				RoutingKey:   r.queue.Name,
+				Payload:      orderData,
+				ContentType:  "application/json",
+				RetryCount:   0,
+				MaxRetries:   r.maxRetries,
+				LastError:    err.Error(),
+				CreatedAt:    now,
+				UpdatedAt:    now,
+				NextRetryAt:  now.Add(r.retryInterval),
 			}
 
-			return r.client.Channel().Publish(
-				"",
-				r.queue.Name,
-				false,
-				false,
-				amqp.Publishing{
-					ContentType: "application/json",
-					Body:        orderData,
-				},
-			)
-		})
+			if err := r.outboxRepo.Insert(ctx, outboxMsg); err != nil {
+				slog.Error("Failed to insert message to outbox", "order_id", ord.ID, "error", err)
+
+				return fmt.Errorf("failed to insert message to outbox: %w", err)
+			}
+
+			slog.Info("Message saved to outbox", "order_id", ord.ID)
+		} else {
+			slog.Info("Message published to RabbitMQ", "order_id", ord.ID)
+		}
 	}
 
-	return g.Wait()
+	return nil
 }
 
 // SaveAuditLogs saves audit log entries to the PostgreSQL database using squirrel bulk insert.
