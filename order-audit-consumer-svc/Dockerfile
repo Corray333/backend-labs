@@ -19,5 +19,6 @@ FROM alpine:latest
 WORKDIR /app
 
 COPY --from=builder /app/order-audit-consumer-svc/main ./main
+COPY --from=builder /app/order-audit-consumer-svc/migrations ./migrations
 
 CMD ["./main"]

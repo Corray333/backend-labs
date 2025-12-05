@@ -9,3 +9,6 @@ rabbitmq:
 grpc:
   order_service_addr: "order-svc:9001"
   timeout_seconds: 30
+
+postgres:
+  migrations_path: "./migrations"

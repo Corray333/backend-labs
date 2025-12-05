@@ -26,7 +26,7 @@ services:
       - DB_USER=${ORDER_PG_USER}
       - DB_PASSWORD=${ORDER_PG_PASSWORD}
       - DB_NAME=${ORDER_PG_DB}
-      - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_AUTH_TYPE=plain
       - PGBOUNCER_IDLE_TRANSACTION_TIMEOUT=60
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MIN_POOL_SIZE=5
@@ -40,7 +40,7 @@ services:
       - PGBOUNCER_DEFAULT_POOL_SIZE=16
       - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits
     volumes:
-      - ./configs/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+      - ./configs/pgbouncer/userlist-order.txt:/etc/pgbouncer/userlist.txt
     depends_on:
       order-pg:
         condition: service_healthy
@@ -89,7 +89,7 @@ services:
       - DB_USER=${AUDIT_PG_USER}
       - DB_PASSWORD=${AUDIT_PG_PASSWORD}
       - DB_NAME=${AUDIT_PG_DB}
-      - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_AUTH_TYPE=plain
       - PGBOUNCER_IDLE_TRANSACTION_TIMEOUT=60
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MIN_POOL_SIZE=5
@@ -103,7 +103,7 @@ services:
       - PGBOUNCER_DEFAULT_POOL_SIZE=16
       - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits
     volumes:
-      - ./configs/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+      - ./configs/pgbouncer/userlist-audit.txt:/etc/pgbouncer/userlist.txt
     depends_on:
       audit-pg:
         condition: service_healthy
