@@ -57,7 +57,7 @@ func (r *AuditRepository) SaveAuditLogs(
 		return fmt.Errorf("failed to build audit logs insert query: %w", err)
 	}
 
-	_, err = r.pgClient.DB().ExecContext(ctx, query, args...)
+	_, err = r.pgClient.Pool().Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to bulk insert audit logs: %w", err)
 	}

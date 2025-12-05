@@ -119,11 +119,7 @@ func (a *App) gracefulShutdown() {
 		slog.Info("RabbitMQ connection closed gracefully")
 	}
 
-	if err := a.postgresClient.Close(); err != nil {
-		slog.Error("PostgreSQL connection close error", "error", err)
-	} else {
-		slog.Info("PostgreSQL connection closed gracefully")
-	}
+	a.postgresClient.Close()
 
 	if err := a.otelController.Shutdown(); err != nil {
 		slog.Error("Otel trace provider connection close error", "error", err)

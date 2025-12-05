@@ -59,7 +59,7 @@ func (r *InboxRepository) Insert(ctx context.Context, msg inbox.InboxMessage) er
 		return fmt.Errorf("failed to build insert query: %w", err)
 	}
 
-	_, err = r.client.DB().ExecContext(ctx, query, args...)
+	_, err = r.client.Pool().Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to insert inbox message: %w", err)
 	}
@@ -98,7 +98,7 @@ func (r *InboxRepository) GetPendingMessages(
 		return nil, fmt.Errorf("failed to build select query: %w", err)
 	}
 
-	rows, err := r.client.DB().QueryContext(ctx, query, args...)
+	rows, err := r.client.Pool().Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inbox messages: %w", err)
 	}
@@ -145,7 +145,7 @@ func (r *InboxRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to build delete query: %w", err)
 	}
 
-	_, err = r.client.DB().ExecContext(ctx, query, args...)
+	_, err = r.client.Pool().Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to delete inbox message: %w", err)
 	}
@@ -173,7 +173,7 @@ func (r *InboxRepository) UpdateRetry(
 		return fmt.Errorf("failed to build update query: %w", err)
 	}
 
-	_, err = r.client.DB().ExecContext(ctx, query, args...)
+	_, err = r.client.Pool().Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update inbox message: %w", err)
 	}

@@ -1,29 +1,30 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/viper"
 )
 
 // Client represents a Postgres client.
 type Client struct {
-	db *sqlx.DB
+	pool *pgxpool.Pool
 }
 
-// DB returns the underlying database connection.
-func (p *Client) DB() *sqlx.DB {
-	return p.db
+// Pool returns the underlying connection pool.
+func (p *Client) Pool() *pgxpool.Pool {
+	return p.pool
 }
 
 // Close closes the database connection for graceful shutdown.
-func (p *Client) Close() error {
-	return p.db.Close()
+func (p *Client) Close() {
+	p.pool.Close()
 }
 
 // MustNewClient creates a new Postgres client.
@@ -35,13 +36,14 @@ func MustNewClient() *Client {
 		os.Getenv("AUDIT_PG_PASSWORD"),
 		os.Getenv("AUDIT_PG_DB"),
 	)
-	fmt.Println(connStr)
-	db, err := sqlx.Open("postgres", connStr)
+
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := db.Ping(); err != nil {
+	if err := pool.Ping(ctx); err != nil {
 		panic(err)
 	}
 
@@ -49,12 +51,20 @@ func MustNewClient() *Client {
 		panic(err)
 	}
 
-	if err := goose.Up(db.DB, viper.GetString("postgres.migrations_path")); err != nil &&
+	// Get a stdlib-compatible connection for goose migrations
+	stdConn := pool.Config().ConnConfig.ConnString()
+	gooseDB, err := goose.OpenDBWithDriver("pgx", stdConn)
+	if err != nil {
+		panic(err)
+	}
+	defer gooseDB.Close()
+
+	if err := goose.Up(gooseDB, viper.GetString("postgres.migrations_path")); err != nil &&
 		!errors.Is(err, goose.ErrNoNextVersion) {
 		panic(err)
 	}
 
 	return &Client{
-		db: db,
+		pool: pool,
 	}
 }
