@@ -10,16 +10,20 @@ import (
 
 	"github.com/corray333/backend-labs/consumer/internal/dal/postgres"
 	auditrepo "github.com/corray333/backend-labs/consumer/internal/dal/repositories/audit/postgres"
+	inboxrepo "github.com/corray333/backend-labs/consumer/internal/dal/repositories/inbox/postgres"
 	"github.com/corray333/backend-labs/consumer/internal/otel"
 	"github.com/corray333/backend-labs/consumer/internal/rabbitmq"
 	"github.com/corray333/backend-labs/consumer/internal/service/services/consumersvc"
 	"github.com/corray333/backend-labs/consumer/internal/transport/consumer"
+	inboxworker "github.com/corray333/backend-labs/consumer/internal/worker/inbox"
+	"github.com/spf13/viper"
 )
 
 // App represents the application.
 type App struct {
 	consumerSvc    *consumersvc.ConsumerService
 	consumerTransp *consumer.Consumer
+	inboxWorker    *inboxworker.Worker
 	rabbitMqClient *rabbitmq.Client
 	postgresClient *postgres.Client
 	otelController *otel.OtelController
@@ -34,15 +38,30 @@ func MustNewApp() *App {
 	// Initialize PostgreSQL audit repository
 	auditRepository := auditrepo.NewAuditRepository(postgresClient)
 
+	// Initialize inbox repository
+	inboxRepository := inboxrepo.NewInboxRepository(postgresClient)
+
 	consumerSvc := consumersvc.MustNewConsumerService(
 		consumersvc.WithAuditRepository(auditRepository),
 	)
 
-	consumerTransp := consumer.NewConsumer(rabbitMqClient, consumerSvc)
+	consumerTransp := consumer.NewConsumer(rabbitMqClient, consumerSvc, inboxRepository)
+
+	// Initialize inbox worker
+	pollInterval := viper.GetDuration("inbox.poll_interval")
+	if pollInterval == 0 {
+		pollInterval = 30 * time.Second
+	}
+	batchSize := viper.GetInt("inbox.batch_size")
+	if batchSize == 0 {
+		batchSize = 10
+	}
+	inboxWorker := inboxworker.NewWorker(inboxRepository, consumerSvc, pollInterval, batchSize)
 
 	return &App{
 		consumerSvc:    consumerSvc,
 		consumerTransp: consumerTransp,
+		inboxWorker:    inboxWorker,
 		rabbitMqClient: rabbitMqClient,
 		postgresClient: postgresClient,
 		otelController: otelController,
@@ -56,7 +75,8 @@ func (a *App) Run() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
 		slog.Info("Starting consumer")
@@ -65,17 +85,27 @@ func (a *App) Run() {
 		}
 	}()
 
+	go func() {
+		slog.Info("Starting inbox worker")
+		a.inboxWorker.Start(ctx)
+	}()
+
 	<-stop
 	slog.Info("Shutdown signal received")
+	cancel()
 
 	a.gracefulShutdown()
 }
 
 // gracefulShutdown performs graceful shutdown of all application components.
-// It shuts down components sequentially: consumer, RabbitMQ, PostgreSQL, and OpenTelemetry.
+// It shuts down components sequentially: inbox worker, consumer, RabbitMQ, PostgreSQL, and OpenTelemetry.
 func (a *App) gracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Stop inbox worker
+	a.inboxWorker.Stop()
+	slog.Info("Inbox worker stopped gracefully")
 
 	if err := a.consumerTransp.Shutdown(); err != nil {
 		slog.Error("Consumer shutdown error", "error", err)

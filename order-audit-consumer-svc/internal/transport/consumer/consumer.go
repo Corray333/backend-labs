@@ -2,12 +2,17 @@ package consumer
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/corray333/backend-labs/consumer/internal/dal/interfaces/iinboxrepo"
 	"github.com/corray333/backend-labs/consumer/internal/rabbitmq"
 	"github.com/corray333/backend-labs/consumer/internal/service/models"
+	"github.com/corray333/backend-labs/consumer/internal/service/models/inbox"
 	"github.com/corray333/backend-labs/consumer/internal/service/models/order"
 	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
@@ -22,15 +27,21 @@ type service interface {
 
 // Consumer represents the RabbitMQ consumer transport.
 type Consumer struct {
-	client  *rabbitmq.Client
-	service service
-	queue   amqp.Queue
-	stop    chan struct{}
-	done    chan struct{}
+	client     *rabbitmq.Client
+	service    service
+	inboxRepo  iinboxrepo.IInboxRepository
+	queue      amqp.Queue
+	stop       chan struct{}
+	done       chan struct{}
+	maxRetries int
 }
 
 // NewConsumer creates a new Consumer.
-func NewConsumer(client *rabbitmq.Client, service service) *Consumer {
+func NewConsumer(
+	client *rabbitmq.Client,
+	service service,
+	inboxRepo iinboxrepo.IInboxRepository,
+) *Consumer {
 	queueName := viper.GetString("rabbitmq.queue")
 	if queueName == "" {
 		panic("rabbitmq.queue is not set in config")
@@ -47,12 +58,19 @@ func NewConsumer(client *rabbitmq.Client, service service) *Consumer {
 		panic(err)
 	}
 
+	maxRetries := viper.GetInt("inbox.max_retries")
+	if maxRetries == 0 {
+		maxRetries = 5
+	}
+
 	return &Consumer{
-		client:  client,
-		service: service,
-		queue:   queue,
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		client:     client,
+		service:    service,
+		inboxRepo:  inboxRepo,
+		queue:      queue,
+		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
+		maxRetries: maxRetries,
 	}
 }
 
@@ -122,7 +140,7 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 	var ord order.Order
 	if err := json.Unmarshal(msg.Body, &ord); err != nil {
 		slog.Error("Failed to unmarshal order", "error", err)
-		// Reject the message without requeuing
+		// Reject the message without requeuing for malformed messages
 		if err := msg.Nack(false, false); err != nil {
 			slog.Error("Failed to nack message", "error", err)
 		}
@@ -133,29 +151,63 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 	// Convert order to audit logs
 	auditLogs := c.convertOrderToAuditLogs(ord)
 
-	// Process each audit log
+	// Try to process each audit log
+	var processingErr error
 	for _, auditLog := range auditLogs {
 		if err := c.service.ProcessAuditLog(ctx, auditLog); err != nil {
+			processingErr = err
 			slog.Error("Failed to process audit log", "error", err, "order_id", ord.ID)
-			// Requeue the message for retry
-			if err := msg.Nack(false, true); err != nil {
-				slog.Error("Failed to nack message", "error", err)
-			}
-
-			return err
+			break
 		}
 	}
 
-	// Acknowledge the message
+	// If processing failed, save to inbox and acknowledge
+	if processingErr != nil {
+		messageID := c.generateMessageID(msg.Body)
+		inboxMsg := inbox.InboxMessage{
+			MessageID:   messageID,
+			QueueName:   c.queue.Name,
+			RoutingKey:  msg.RoutingKey,
+			Payload:     msg.Body,
+			ContentType: msg.ContentType,
+			RetryCount:  0,
+			MaxRetries:  c.maxRetries,
+			LastError:   processingErr.Error(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			NextRetryAt: time.Now().Add(30 * time.Second),
+			DeliveryTag: msg.DeliveryTag,
+		}
+
+		if err := c.inboxRepo.Insert(ctx, inboxMsg); err != nil {
+			slog.Error("Failed to save message to inbox", "error", err, "order_id", ord.ID)
+			// Don't acknowledge - let RabbitMQ requeue
+			if err := msg.Nack(false, true); err != nil {
+				slog.Error("Failed to nack message", "error", err)
+			}
+			return fmt.Errorf("failed to save to inbox: %w", err)
+		}
+
+		slog.Info("Message saved to inbox for retry", "order_id", ord.ID, "message_id", messageID)
+	}
+
+	// Acknowledge the message (either processed successfully or saved to inbox)
 	if err := msg.Ack(false); err != nil {
 		slog.Error("Failed to ack message", "error", err)
-
 		return err
 	}
 
-	slog.Info("Message processed successfully", "order_id", ord.ID)
+	if processingErr == nil {
+		slog.Info("Message processed successfully", "order_id", ord.ID)
+	}
 
 	return nil
+}
+
+// generateMessageID generates a unique message ID based on message content.
+func (c *Consumer) generateMessageID(payload []byte) string {
+	hash := sha256.Sum256(payload)
+	return hex.EncodeToString(hash[:])
 }
 
 // convertOrderToAuditLogs converts an order to audit log entries.
