@@ -42,23 +42,23 @@ func NewConsumer(
 	service service,
 	inboxRepo iinboxrepo.IInboxRepository,
 ) *Consumer {
-	queueName := viper.GetString("rabbitmq.queue")
+	queueName := viper.GetString("rabbitmq.queue.name")
 	if queueName == "" {
-		panic("rabbitmq.queue is not set in config")
+		panic("rabbitmq.queue.name is not set in config")
 	}
 
 	queue, err := client.DeclareQueue(rabbitmq.DeclareQueueConfig{
 		Name:       queueName,
-		Durable:    false,
-		AutoDelete: false,
-		Exclusive:  false,
-		NoWait:     false,
+		Durable:    viper.GetBool("rabbitmq.queue.durable"),
+		AutoDelete: viper.GetBool("rabbitmq.queue.auto_delete"),
+		Exclusive:  viper.GetBool("rabbitmq.queue.exclusive"),
+		NoWait:     viper.GetBool("rabbitmq.queue.no_wait"),
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	maxRetries := viper.GetInt("inbox.max_retries")
+	maxRetries := viper.GetInt("rabbitmq.inbox.max_retries")
 	if maxRetries == 0 {
 		maxRetries = 5
 	}
@@ -76,7 +76,7 @@ func NewConsumer(
 
 // Run starts consuming messages from RabbitMQ.
 func (c *Consumer) Run(ctx context.Context) error {
-	consumerTag := viper.GetString("rabbitmq.consumer_tag")
+	consumerTag := viper.GetString("rabbitmq.consumer.tag")
 	if consumerTag == "" {
 		consumerTag = "consumer-svc"
 	}
@@ -84,10 +84,10 @@ func (c *Consumer) Run(ctx context.Context) error {
 	msgs, err := c.client.Consume(rabbitmq.ConsumeConfig{
 		Queue:     c.queue.Name,
 		Consumer:  consumerTag,
-		AutoAck:   viper.GetBool("rabbitmq.auto_ack"),
-		Exclusive: viper.GetBool("rabbitmq.exclusive"),
-		NoLocal:   viper.GetBool("rabbitmq.no_local"),
-		NoWait:    viper.GetBool("rabbitmq.no_wait"),
+		AutoAck:   viper.GetBool("rabbitmq.consumer.auto_ack"),
+		Exclusive: viper.GetBool("rabbitmq.consumer.exclusive"),
+		NoLocal:   viper.GetBool("rabbitmq.consumer.no_local"),
+		NoWait:    viper.GetBool("rabbitmq.consumer.no_wait"),
 	})
 	if err != nil {
 		return err

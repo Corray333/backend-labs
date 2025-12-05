@@ -3,8 +3,8 @@ package rabbitmq
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
+	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
 )
 
@@ -40,11 +40,24 @@ func (r *Client) Close() error {
 
 // MustNewClient creates a new RabbitMQ client.
 func MustNewClient() *Client {
+	host := viper.GetString("rabbitmq.host")
+	port := viper.GetInt("rabbitmq.port")
+	user := viper.GetString("rabbitmq.user")
+	password := viper.GetString("rabbitmq.password")
+
+	if host == "" {
+		host = "rabbitmq"
+	}
+	if port == 0 {
+		port = 5672
+	}
+
 	connStr := fmt.Sprintf(
-		"amqp://%s:%s@%s:5672/",
-		os.Getenv("RABBITMQ_DEFAULT_USER"),
-		os.Getenv("RABBITMQ_DEFAULT_PASS"),
-		"rabbitmq",
+		"amqp://%s:%s@%s:%d/",
+		user,
+		password,
+		host,
+		port,
 	)
 
 	conn, err := amqp.Dial(connStr)
@@ -61,7 +74,7 @@ func MustNewClient() *Client {
 		panic(fmt.Sprintf("Failed to open a channel: %v", err))
 	}
 
-	slog.Info("RabbitMQ connected")
+	slog.Info("RabbitMQ connected", "host", host, "port", port)
 
 	return &Client{
 		conn:    conn,

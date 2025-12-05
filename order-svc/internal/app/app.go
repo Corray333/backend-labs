@@ -60,8 +60,6 @@ func MustNewApp() *App {
 	outboxWorker := outbox.NewWorker(
 		outboxRepository,
 		rabbitMqClient,
-		3*time.Second,
-		100,
 	)
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())

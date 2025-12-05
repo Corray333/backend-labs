@@ -1,6 +1,23 @@
 postgres:
   migrations_path: "./migrations"
 
+rabbitmq:
+  host: "rabbitmq"
+  port: 5672
+  user: "${RABBITMQ_DEFAULT_USER}"
+  password: "${RABBITMQ_DEFAULT_PASS}"
+  queue:
+    name: "oms.order.created"
+    durable: false
+    auto_delete: false
+    exclusive: false
+    no_wait: false
+  outbox:
+    max_retries: 5
+    retry_interval_seconds: 30
+    poll_interval_seconds: 10
+    batch_size: 100
+
 server:
   http:
     port: 3001

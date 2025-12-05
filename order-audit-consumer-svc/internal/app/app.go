@@ -16,7 +16,6 @@ import (
 	"github.com/corray333/backend-labs/consumer/internal/service/services/consumersvc"
 	"github.com/corray333/backend-labs/consumer/internal/transport/consumer"
 	inboxworker "github.com/corray333/backend-labs/consumer/internal/worker/inbox"
-	"github.com/spf13/viper"
 )
 
 // App represents the application.
@@ -48,15 +47,7 @@ func MustNewApp() *App {
 	consumerTransp := consumer.NewConsumer(rabbitMqClient, consumerSvc, inboxRepository)
 
 	// Initialize inbox worker
-	pollInterval := viper.GetDuration("inbox.poll_interval")
-	if pollInterval == 0 {
-		pollInterval = 30 * time.Second
-	}
-	batchSize := viper.GetInt("inbox.batch_size")
-	if batchSize == 0 {
-		batchSize = 10
-	}
-	inboxWorker := inboxworker.NewWorker(inboxRepository, consumerSvc, pollInterval, batchSize)
+	inboxWorker := inboxworker.NewWorker(inboxRepository, consumerSvc)
 
 	return &App{
 		consumerSvc:    consumerSvc,

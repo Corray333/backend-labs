@@ -12,6 +12,7 @@ import (
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/outbox"
+	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
 )
 
@@ -29,14 +30,30 @@ func NewAuditRabbitMQRepository(
 	pgClient *postgres.Client,
 	outboxRepo ioutboxrepo.IOutboxRepository,
 ) *AuditRabbitMQRepository {
+	queueName := viper.GetString("rabbitmq.queue.name")
+	if queueName == "" {
+		queueName = "oms.order.created"
+	}
+
 	queue, err := client.DeclareQueue(rabbitmq.DeclareQueueConfig{
-		Name:       "oms.order.created",
-		Durable:    false,
-		Exclusive:  false,
-		AutoDelete: false,
+		Name:       queueName,
+		Durable:    viper.GetBool("rabbitmq.queue.durable"),
+		Exclusive:  viper.GetBool("rabbitmq.queue.exclusive"),
+		AutoDelete: viper.GetBool("rabbitmq.queue.auto_delete"),
+		NoWait:     viper.GetBool("rabbitmq.queue.no_wait"),
 	})
 	if err != nil {
 		panic(err)
+	}
+
+	maxRetries := viper.GetInt("rabbitmq.outbox.max_retries")
+	if maxRetries == 0 {
+		maxRetries = 5
+	}
+
+	retryIntervalSeconds := viper.GetInt("rabbitmq.outbox.retry_interval_seconds")
+	if retryIntervalSeconds == 0 {
+		retryIntervalSeconds = 30
 	}
 
 	return &AuditRabbitMQRepository{
@@ -44,8 +61,8 @@ func NewAuditRabbitMQRepository(
 		queue:         queue,
 		pgClient:      pgClient,
 		outboxRepo:    outboxRepo,
-		maxRetries:    5,
-		retryInterval: 30 * time.Second, // 30 seconds between retries
+		maxRetries:    maxRetries,
+		retryInterval: time.Duration(retryIntervalSeconds) * time.Second,
 	}
 }
 

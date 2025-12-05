@@ -10,6 +10,7 @@ import (
 	"github.com/corray333/backend-labs/consumer/internal/dal/interfaces/iinboxrepo"
 	"github.com/corray333/backend-labs/consumer/internal/service/models"
 	"github.com/corray333/backend-labs/consumer/internal/service/models/order"
+	"github.com/spf13/viper"
 )
 
 // service represents the service layer interface.
@@ -30,13 +31,21 @@ type Worker struct {
 func NewWorker(
 	inboxRepo iinboxrepo.IInboxRepository,
 	service service,
-	pollInterval time.Duration,
-	batchSize int,
 ) *Worker {
+	pollIntervalSeconds := viper.GetInt("rabbitmq.inbox.poll_interval_seconds")
+	if pollIntervalSeconds == 0 {
+		pollIntervalSeconds = 10
+	}
+
+	batchSize := viper.GetInt("rabbitmq.inbox.batch_size")
+	if batchSize == 0 {
+		batchSize = 100
+	}
+
 	return &Worker{
 		inboxRepo:    inboxRepo,
 		service:      service,
-		pollInterval: pollInterval,
+		pollInterval: time.Duration(pollIntervalSeconds) * time.Second,
 		batchSize:    batchSize,
 		stopCh:       make(chan struct{}),
 	}

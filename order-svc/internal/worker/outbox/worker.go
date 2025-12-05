@@ -8,6 +8,7 @@ import (
 
 	"github.com/corray333/backend-labs/order/internal/dal/interfaces/ioutboxrepo"
 	"github.com/corray333/backend-labs/order/internal/dal/rabbitmq"
+	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
 )
 
@@ -25,15 +26,28 @@ type Worker struct {
 func NewWorker(
 	outboxRepo ioutboxrepo.IOutboxRepository,
 	rabbitClient *rabbitmq.Client,
-	pollInterval time.Duration,
-	batchSize int,
 ) *Worker {
+	pollIntervalSeconds := viper.GetInt("rabbitmq.outbox.poll_interval_seconds")
+	if pollIntervalSeconds == 0 {
+		pollIntervalSeconds = 10
+	}
+
+	batchSize := viper.GetInt("rabbitmq.outbox.batch_size")
+	if batchSize == 0 {
+		batchSize = 100
+	}
+
+	retryIntervalSeconds := viper.GetInt("rabbitmq.outbox.retry_interval_seconds")
+	if retryIntervalSeconds == 0 {
+		retryIntervalSeconds = 30
+	}
+
 	return &Worker{
 		outboxRepo:    outboxRepo,
 		rabbitClient:  rabbitClient,
-		pollInterval:  pollInterval,
+		pollInterval:  time.Duration(pollIntervalSeconds) * time.Second,
 		batchSize:     batchSize,
-		retryInterval: 30 * time.Second,
+		retryInterval: time.Duration(retryIntervalSeconds) * time.Second,
 		stopCh:        make(chan struct{}),
 	}
 }
