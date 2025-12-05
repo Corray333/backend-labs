@@ -2,18 +2,16 @@ package postgresrepo
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
-	"log/slog"
-	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/order"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
-	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 )
 
@@ -60,44 +58,29 @@ func OrderDalFromModel(o *order.Order) *OrderDal {
 	}
 }
 
-// OrderArray is a custom type for PostgreSQL array handling.
-type OrderArray []*OrderDal
-
-// Value implements driver.Valuer interface for PostgreSQL array.
-func (a OrderArray) Value() (driver.Value, error) {
-	if len(a) == 0 {
-		return nil, nil
-	}
-
-	values := make([]string, 0, len(a))
-	for _, dal := range a {
-		values = append(values, fmt.Sprintf("(%d,'%s',%d,'%s','%s','%s')",
-			dal.CustomerId,
-			dal.DeliveryAddress,
-			dal.TotalPriceCents,
-			dal.TotalPriceCurrency,
-			dal.CreatedAt.Format(time.RFC3339),
-			dal.UpdatedAt.Format(time.RFC3339)))
-	}
-
-	return strings.Join(values, ","), nil
-}
-
 // PostgresOrderRepository represents a Postgres iorderrepo repository.
 type PostgresOrderRepository struct {
-	conn sqlx.ExtContext
+	conn GenericConn
 	sb   sq.StatementBuilderType
 }
 
+// GenericConn is an interface that works with both pgxpool.Pool and pgx.Tx
+type GenericConn interface {
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
 // NewPostgresOrderRepository creates a new Postgres iorderrepo repository.
-func NewPostgresOrderRepository(pgClient sqlx.ExtContext) *PostgresOrderRepository {
+func NewPostgresOrderRepository(conn GenericConn) *PostgresOrderRepository {
 	return &PostgresOrderRepository{
-		conn: pgClient,
+		conn: conn,
 		sb:   sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
 
 // BulkInsert inserts multiple orders and returns the inserted orders with IDs.
+// Uses PostgreSQL composite type v1_order for optimization.
 func (r *PostgresOrderRepository) BulkInsert(
 	ctx context.Context,
 	orders []order.Order,
@@ -109,83 +92,58 @@ func (r *PostgresOrderRepository) BulkInsert(
 		return []order.Order{}, nil
 	}
 
-	customerIds := make([]int64, len(orders))
-	deliveryAddresses := make([]string, len(orders))
-	totalPriceCents := make([]int64, len(orders))
-	totalPriceCurrencies := make([]string, len(orders))
-	createdAts := make([]time.Time, len(orders))
-	updatedAts := make([]time.Time, len(orders))
-
+	compositeRecords := make([][]interface{}, len(orders))
 	for i, o := range orders {
-		customerIds[i] = o.CustomerID
-		deliveryAddresses[i] = o.DeliveryAddress
-		totalPriceCents[i] = o.TotalPriceCents
-		totalPriceCurrencies[i] = o.TotalPriceCurrency.String()
-		createdAts[i] = o.CreatedAt
-		updatedAts[i] = o.UpdatedAt
+		compositeRecords[i] = []interface{}{
+			nil, // id will be generated
+			o.CustomerID,
+			o.DeliveryAddress,
+			o.TotalPriceCents,
+			o.TotalPriceCurrency.String(),
+			pgtype.Timestamptz{Time: o.CreatedAt, Valid: true},
+			pgtype.Timestamptz{Time: o.UpdatedAt, Valid: true},
+		}
 	}
 
-	// For complex unnest queries, we use raw SQL with squirrel's Expr
-	query := r.sb.
-		Insert("orders").
-		Columns(
-			"customer_id",
-			"delivery_address",
-			"total_price_cents",
-			"total_price_currency",
-			"created_at",
-			"updated_at",
-		).
-		Select(sq.
-			Select(
-				"customer_id",
-				"delivery_address",
-				"total_price_cents",
-				"total_price_currency",
-				"created_at",
-				"updated_at",
-			).
-			From("unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[], $5::timestamp[], $6::timestamp[]) AS t(customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at)"),
-		).
-		Suffix("RETURNING id, customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at")
+	sql := `
+		INSERT INTO orders (customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at)
+		SELECT (unnest($1::v1_order[])).customer_id,
+		       (unnest($1::v1_order[])).delivery_address,
+		       (unnest($1::v1_order[])).total_price_cents,
+		       (unnest($1::v1_order[])).total_price_currency,
+		       (unnest($1::v1_order[])).created_at,
+		       (unnest($1::v1_order[])).updated_at
+		RETURNING id, customer_id, delivery_address, total_price_cents, total_price_currency, created_at, updated_at
+	`
 
-	sql, _, err := query.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build bulk insert query: %w", err)
-	}
-
-	rows, err := r.conn.QueryContext(ctx, sql,
-		pq.Array(customerIds),
-		pq.Array(deliveryAddresses),
-		pq.Array(totalPriceCents),
-		pq.Array(totalPriceCurrencies),
-		pq.Array(createdAts),
-		pq.Array(updatedAts))
+	rows, err := r.conn.Query(ctx, sql, compositeRecords)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk insert orders: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("failed to close rows", "error", err)
-		}
-	}()
+	defer rows.Close()
 
 	var result []order.Order
 	i := 0
 	for rows.Next() {
-		dal := OrderDal{}
+		var dal OrderDal
+		var createdAt, updatedAt pgtype.Timestamptz
+
 		err := rows.Scan(
 			&dal.Id,
 			&dal.CustomerId,
 			&dal.DeliveryAddress,
 			&dal.TotalPriceCents,
 			&dal.TotalPriceCurrency,
-			&dal.CreatedAt,
-			&dal.UpdatedAt,
+			&createdAt,
+			&updatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan iorderrepo: %w", err)
 		}
+
+		dal.CreatedAt = createdAt.Time
+		dal.UpdatedAt = updatedAt.Time
+
 		model, err := dal.ToModel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert iorderrepo dal to model: %w", err)
@@ -245,31 +203,33 @@ func (r *PostgresOrderRepository) Query(
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	rows, err := r.conn.QueryContext(ctx, sql, args...)
+	rows, err := r.conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query orders: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("failed to close rows", "error", err)
-		}
-	}()
+	defer rows.Close()
 
 	var result []order.Order
 	for rows.Next() {
 		var dal OrderDal
+		var createdAt, updatedAt pgtype.Timestamptz
+
 		err := rows.Scan(
 			&dal.Id,
 			&dal.CustomerId,
 			&dal.DeliveryAddress,
 			&dal.TotalPriceCents,
 			&dal.TotalPriceCurrency,
-			&dal.CreatedAt,
-			&dal.UpdatedAt,
+			&createdAt,
+			&updatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan iorderrepo: %w", err)
 		}
+
+		dal.CreatedAt = createdAt.Time
+		dal.UpdatedAt = updatedAt.Time
+
 		model, err := dal.ToModel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert iorderrepo dal to model: %w", err)

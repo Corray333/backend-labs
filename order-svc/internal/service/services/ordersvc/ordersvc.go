@@ -27,8 +27,8 @@ func (s *OrderService) newUOW() unitOfWork {
 
 type unitOfWork interface {
 	Begin(ctx context.Context) error
-	Commit() error
-	Rollback() error
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
 
 	OrderRepository() iorder.IOrderRepository
 	OrderItemRepository() iorderitem.IOrderItemRepository
@@ -111,7 +111,7 @@ func (s *OrderService) BatchInsert(
 	err = s.auditor.LogBatchInsert(ctx, orders)
 	if err != nil {
 		// Rollback transaction if audit logging fails
-		if rbErr := work.Rollback(); rbErr != nil {
+		if rbErr := work.Rollback(ctx); rbErr != nil {
 			slog.Error("Failed to rollback transaction", "error", rbErr)
 		}
 
@@ -119,7 +119,7 @@ func (s *OrderService) BatchInsert(
 	}
 
 	// Commit transaction only if audit logging succeeded
-	err = work.Commit()
+	err = work.Commit(ctx)
 	if err != nil {
 		return nil, err
 	}

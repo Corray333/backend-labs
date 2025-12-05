@@ -3,14 +3,14 @@ package postgresrepo
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/corray333/backend-labs/order/internal/service/models/currency"
 	"github.com/corray333/backend-labs/order/internal/service/models/orderitem"
-	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OrderItemDal represents iorderrepo item data access layer model.
@@ -66,19 +66,27 @@ func OrderItemDalFromModel(oi *orderitem.OrderItem) *OrderItemDal {
 
 // PostgresOrderItemRepository represents a Postgres iorderrepo item repository.
 type PostgresOrderItemRepository struct {
-	conn sqlx.ExtContext
+	conn GenericConn
 	sb   sq.StatementBuilderType
 }
 
+// GenericConn is an interface that works with both pgxpool.Pool and pgx.Tx
+type GenericConn interface {
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
 // NewPostgresOrderItemRepository creates a new Postgres iorderrepo item repository.
-func NewPostgresOrderItemRepository(pgClient sqlx.ExtContext) *PostgresOrderItemRepository {
+func NewPostgresOrderItemRepository(conn GenericConn) *PostgresOrderItemRepository {
 	return &PostgresOrderItemRepository{
-		conn: pgClient,
+		conn: conn,
 		sb:   sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
 
 // BulkInsert inserts multiple iorderrepo items and returns the inserted iorderrepo items with IDs.
+// Uses PostgreSQL composite type v1_order_item for optimization.
 func (r *PostgresOrderItemRepository) BulkInsert(
 	ctx context.Context,
 	orderItems []orderitem.OrderItem,
@@ -87,86 +95,49 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 		return []orderitem.OrderItem{}, nil
 	}
 
-	// Prepare arrays for bulk insert
-	orderIds := make([]int64, len(orderItems))
-	productIds := make([]int64, len(orderItems))
-	quantities := make([]int, len(orderItems))
-	productTitles := make([]string, len(orderItems))
-	productUrls := make([]string, len(orderItems))
-	priceCents := make([]int64, len(orderItems))
-	priceCurrencies := make([]string, len(orderItems))
-	createdAts := make([]time.Time, len(orderItems))
-	updatedAts := make([]time.Time, len(orderItems))
-
+	// Prepare array of composite type values
+	compositeRecords := make([][]interface{}, len(orderItems))
 	for i, oi := range orderItems {
-		orderIds[i] = oi.OrderID
-		productIds[i] = oi.ProductID
-		quantities[i] = oi.Quantity
-		productTitles[i] = oi.ProductTitle
-		productUrls[i] = oi.ProductUrl
-		priceCents[i] = oi.PriceCents
-		priceCurrencies[i] = oi.PriceCurrency.String()
-		createdAts[i] = oi.CreatedAt
-		updatedAts[i] = oi.UpdatedAt
+		compositeRecords[i] = []interface{}{
+			nil, // id will be generated
+			oi.OrderID,
+			oi.ProductID,
+			oi.Quantity,
+			oi.ProductTitle,
+			oi.ProductUrl,
+			oi.PriceCents,
+			oi.PriceCurrency.String(),
+			pgtype.Timestamptz{Time: oi.CreatedAt, Valid: true},
+			pgtype.Timestamptz{Time: oi.UpdatedAt, Valid: true},
+		}
 	}
 
-	// For complex unnest queries, we use raw SQL with squirrel
-	query := r.sb.
-		Insert("order_items").
-		Columns(
-			"order_id",
-			"product_id",
-			"quantity",
-			"product_title",
-			"product_url",
-			"price_cents",
-			"price_currency",
-			"created_at",
-			"updated_at",
-		).
-		Select(sq.
-			Select(
-				"order_id",
-				"product_id",
-				"quantity",
-				"product_title",
-				"product_url",
-				"price_cents",
-				"price_currency",
-				"created_at",
-				"updated_at",
-			).
-			From("unnest($1::bigint[], $2::bigint[], $3::int[], $4::text[], $5::text[], $6::bigint[], $7::text[], $8::timestamp[], $9::timestamp[]) AS t(order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at)"),
-		).
-		Suffix("RETURNING id, order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at")
+	// Use unnest with composite type for efficient bulk insert
+	sql := `
+		INSERT INTO order_items (order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at)
+		SELECT (unnest($1::v1_order_item[])).order_id,
+		       (unnest($1::v1_order_item[])).product_id,
+		       (unnest($1::v1_order_item[])).quantity,
+		       (unnest($1::v1_order_item[])).product_title,
+		       (unnest($1::v1_order_item[])).product_url,
+		       (unnest($1::v1_order_item[])).price_cents,
+		       (unnest($1::v1_order_item[])).price_currency,
+		       (unnest($1::v1_order_item[])).created_at,
+		       (unnest($1::v1_order_item[])).updated_at
+		RETURNING id, order_id, product_id, quantity, product_title, product_url, price_cents, price_currency, created_at, updated_at
+	`
 
-	sql, _, err := query.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build bulk insert query: %w", err)
-	}
-
-	rows, err := r.conn.QueryContext(ctx, sql,
-		pq.Array(orderIds),
-		pq.Array(productIds),
-		pq.Array(quantities),
-		pq.Array(productTitles),
-		pq.Array(productUrls),
-		pq.Array(priceCents),
-		pq.Array(priceCurrencies),
-		pq.Array(createdAts),
-		pq.Array(updatedAts))
+	rows, err := r.conn.Query(ctx, sql, compositeRecords)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk insert iorderrepo items: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("failed to close rows", "error", err)
-		}
-	}()
+	defer rows.Close()
 
 	var result []orderitem.OrderItem
 	for rows.Next() {
 		var dal OrderItemDal
+		var createdAt, updatedAt pgtype.Timestamptz
+
 		err := rows.Scan(
 			&dal.Id,
 			&dal.OrderId,
@@ -176,12 +147,16 @@ func (r *PostgresOrderItemRepository) BulkInsert(
 			&dal.ProductUrl,
 			&dal.PriceCents,
 			&dal.PriceCurrency,
-			&dal.CreatedAt,
-			&dal.UpdatedAt,
+			&createdAt,
+			&updatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan iorderrepo item: %w", err)
 		}
+
+		dal.CreatedAt = createdAt.Time
+		dal.UpdatedAt = updatedAt.Time
+
 		result = append(result, *dal.ToModel())
 	}
 
@@ -237,19 +212,17 @@ func (r *PostgresOrderItemRepository) Query(
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	rows, err := r.conn.QueryContext(ctx, sql, args...)
+	rows, err := r.conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query iorderrepo items: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("failed to close rows", "error", err)
-		}
-	}()
+	defer rows.Close()
 
 	var result []orderitem.OrderItem
 	for rows.Next() {
 		var dal OrderItemDal
+		var createdAt, updatedAt pgtype.Timestamptz
+
 		err := rows.Scan(
 			&dal.Id,
 			&dal.OrderId,
@@ -259,12 +232,16 @@ func (r *PostgresOrderItemRepository) Query(
 			&dal.ProductUrl,
 			&dal.PriceCents,
 			&dal.PriceCurrency,
-			&dal.CreatedAt,
-			&dal.UpdatedAt,
+			&createdAt,
+			&updatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan iorderrepo item: %w", err)
 		}
+
+		dal.CreatedAt = createdAt.Time
+		dal.UpdatedAt = updatedAt.Time
+
 		result = append(result, *dal.ToModel())
 	}
 

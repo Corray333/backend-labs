@@ -147,11 +147,8 @@ func (a *App) gracefulShutdown() {
 	})
 
 	wg.Go(func() {
-		if err := a.postgresClient.Close(); err != nil {
-			slog.Error("Database connection close error", "error", err)
-		} else {
-			slog.Info("Database connection closed gracefully")
-		}
+		a.postgresClient.Close()
+		slog.Info("Database connection closed gracefully")
 	})
 
 	wg.Go(func() {
