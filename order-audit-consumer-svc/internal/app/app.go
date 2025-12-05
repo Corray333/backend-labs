@@ -8,7 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	grpcclient "github.com/corray333/backend-labs/consumer/internal/dal/grpc"
+	"github.com/corray333/backend-labs/consumer/internal/dal/postgres"
+	auditrepo "github.com/corray333/backend-labs/consumer/internal/dal/repositories/audit/postgres"
 	"github.com/corray333/backend-labs/consumer/internal/otel"
 	"github.com/corray333/backend-labs/consumer/internal/rabbitmq"
 	"github.com/corray333/backend-labs/consumer/internal/service/services/consumersvc"
@@ -20,7 +21,7 @@ type App struct {
 	consumerSvc    *consumersvc.ConsumerService
 	consumerTransp *consumer.Consumer
 	rabbitMqClient *rabbitmq.Client
-	grpcClient     *grpcclient.Client
+	postgresClient *postgres.Client
 	otelController *otel.OtelController
 }
 
@@ -28,10 +29,13 @@ type App struct {
 func MustNewApp() *App {
 	otelController := otel.MustInitOtel()
 	rabbitMqClient := rabbitmq.MustNewClient()
-	grpcClient := grpcclient.MustNewClient()
+	postgresClient := postgres.MustNewClient()
+
+	// Initialize PostgreSQL audit repository
+	auditRepository := auditrepo.NewAuditRepository(postgresClient)
 
 	consumerSvc := consumersvc.MustNewConsumerService(
-		consumersvc.WithAuditRepository(grpcClient),
+		consumersvc.WithAuditRepository(auditRepository),
 	)
 
 	consumerTransp := consumer.NewConsumer(rabbitMqClient, consumerSvc)
@@ -40,7 +44,7 @@ func MustNewApp() *App {
 		consumerSvc:    consumerSvc,
 		consumerTransp: consumerTransp,
 		rabbitMqClient: rabbitMqClient,
-		grpcClient:     grpcClient,
+		postgresClient: postgresClient,
 		otelController: otelController,
 	}
 }
@@ -68,7 +72,7 @@ func (a *App) Run() {
 }
 
 // gracefulShutdown performs graceful shutdown of all application components.
-// It shuts down components sequentially: consumer, RabbitMQ, gRPC client, and OpenTelemetry.
+// It shuts down components sequentially: consumer, RabbitMQ, PostgreSQL, and OpenTelemetry.
 func (a *App) gracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -85,10 +89,10 @@ func (a *App) gracefulShutdown() {
 		slog.Info("RabbitMQ connection closed gracefully")
 	}
 
-	if err := a.grpcClient.Close(); err != nil {
-		slog.Error("gRPC client close error", "error", err)
+	if err := a.postgresClient.Close(); err != nil {
+		slog.Error("PostgreSQL connection close error", "error", err)
 	} else {
-		slog.Info("gRPC client closed gracefully")
+		slog.Info("PostgreSQL connection closed gracefully")
 	}
 
 	if err := a.otelController.Shutdown(); err != nil {

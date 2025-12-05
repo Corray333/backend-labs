@@ -62,6 +62,54 @@ services:
       - rabbitmq
       - jaeger
 
+  audit-pg:
+    image: postgres
+    environment:
+      POSTGRES_DB: ${AUDIT_PG_DB}
+      POSTGRES_USER: ${AUDIT_PG_USER}
+      POSTGRES_PASSWORD: ${AUDIT_PG_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - audit-pgdata:/var/lib/postgresql
+      - ./configs/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  audit-pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      - DB_HOST=${AUDIT_PG_HOST}
+      - DB_PORT=${AUDIT_PG_PORT}
+      - DB_USER=${AUDIT_PG_USER}
+      - DB_PASSWORD=${AUDIT_PG_PASSWORD}
+      - DB_NAME=${AUDIT_PG_DB}
+      - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_IDLE_TRANSACTION_TIMEOUT=60
+      - PGBOUNCER_POOL_MODE=transaction
+      - PGBOUNCER_MIN_POOL_SIZE=5
+      - PGBOUNCER_SERVER_RESET_QUERY_ALWAYS=0
+      - PGBOUNCER_SERVER_LIFETIME=3600
+      - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+      - PGBOUNCER_MAX_DB_CONNECTIONS=50
+      - PGBOUNCER_MAX_CLIENT_CONN=10000
+      - PGBOUNCER_RESERVE_POOL_SIZE=5
+      - PGBOUNCER_MIN_POOL_SIZE=2
+      - PGBOUNCER_DEFAULT_POOL_SIZE=16
+      - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits
+    volumes:
+      - ./configs/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    depends_on:
+      audit-pg:
+        condition: service_healthy
+    ports:
+      - 5433:5432
+
   order-audit-consumer-svc:
     build:
       context: .
@@ -73,6 +121,7 @@ services:
       - order-svc
       - rabbitmq
       - jaeger
+      - audit-pgbouncer
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -98,4 +147,5 @@ services:
 
 volumes:
   order-pgdata:
+  audit-pgdata:
   rabbitmq_data:

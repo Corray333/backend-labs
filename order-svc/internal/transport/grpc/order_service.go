@@ -85,28 +85,3 @@ func (s *OrderServer) ListOrders(
 	return response, nil
 }
 
-// SaveAuditLog handles the save audit log gRPC request.
-func (s *OrderServer) SaveAuditLog(
-	ctx context.Context,
-	req *pb.SaveAuditLogRequest,
-) (*pb.SaveAuditLogResponse, error) {
-	slog.Info("Received SaveAuditLog gRPC request", "audit_logs_count", len(req.AuditLogs))
-
-	// Convert protobuf request to internal models
-	auditLogs := converters.SaveAuditLogRequestFromProto(req)
-
-	// Call service layer
-	savedAuditLogs, err := s.service.SaveAuditLogs(ctx, auditLogs)
-	if err != nil {
-		slog.Error("Error saving audit logs", "error", err)
-
-		return nil, status.Errorf(codes.Internal, "failed to save audit logs: %v", err)
-	}
-
-	// Convert response to protobuf
-	response := converters.SaveAuditLogResponseToProto(savedAuditLogs)
-
-	slog.Info("SaveAuditLog completed successfully", "saved_count", len(savedAuditLogs))
-
-	return response, nil
-}
