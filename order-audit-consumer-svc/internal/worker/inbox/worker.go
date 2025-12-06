@@ -62,9 +62,11 @@ func (w *Worker) Start(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			slog.Info("Inbox worker shutting down")
+
 			return
 		case <-w.stopCh:
 			slog.Info("Inbox worker stopped")
+
 			return
 		case <-ticker.C:
 			w.processMessages(ctx)
@@ -82,6 +84,7 @@ func (w *Worker) processMessages(ctx context.Context) {
 	messages, err := w.inboxRepo.GetPendingMessages(ctx, w.batchSize)
 	if err != nil {
 		slog.Error("Failed to get pending messages from inbox", "error", err)
+
 		return
 	}
 
@@ -105,7 +108,13 @@ func (w *Worker) processMessages(ctx context.Context) {
 					"message_id", msg.MessageID,
 				)
 				if err := w.inboxRepo.Delete(ctx, msg.ID); err != nil {
-					slog.Error("Failed to delete message from inbox", "inbox_id", msg.ID, "error", err)
+					slog.Error(
+						"Failed to delete message from inbox",
+						"inbox_id",
+						msg.ID,
+						"error",
+						err,
+					)
 				}
 			} else {
 				backoffSeconds := math.Pow(2, float64(newRetryCount)) * 30
@@ -114,6 +123,7 @@ func (w *Worker) processMessages(ctx context.Context) {
 					slog.Error("Failed to update retry information", "inbox_id", msg.ID, "error", err)
 				}
 			}
+
 			continue
 		}
 
@@ -125,7 +135,16 @@ func (w *Worker) processMessages(ctx context.Context) {
 		for _, auditLog := range auditLogs {
 			if err := w.service.ProcessAuditLog(ctx, auditLog); err != nil {
 				processingErr = err
-				slog.Error("Failed to process audit log from inbox", "error", err, "inbox_id", msg.ID, "order_id", ord.ID)
+				slog.Error(
+					"Failed to process audit log from inbox",
+					"error",
+					err,
+					"inbox_id",
+					msg.ID,
+					"order_id",
+					ord.ID,
+				)
+
 				break
 			}
 		}

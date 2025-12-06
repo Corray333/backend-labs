@@ -136,11 +136,9 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 
 	slog.Info("Received message", "delivery_tag", msg.DeliveryTag)
 
-	// Unmarshal the order
 	var ord order.Order
 	if err := json.Unmarshal(msg.Body, &ord); err != nil {
 		slog.Error("Failed to unmarshal order", "error", err)
-		// Reject the message without requeuing for malformed messages
 		if err := msg.Nack(false, false); err != nil {
 			slog.Error("Failed to nack message", "error", err)
 		}
@@ -148,20 +146,18 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 		return err
 	}
 
-	// Convert order to audit logs
 	auditLogs := c.convertOrderToAuditLogs(ord)
 
-	// Try to process each audit log
 	var processingErr error
 	for _, auditLog := range auditLogs {
 		if err := c.service.ProcessAuditLog(ctx, auditLog); err != nil {
 			processingErr = err
 			slog.Error("Failed to process audit log", "error", err, "order_id", ord.ID)
+
 			break
 		}
 	}
 
-	// If processing failed, save to inbox and acknowledge
 	if processingErr != nil {
 		messageID := c.generateMessageID(msg.Body)
 		inboxMsg := inbox.InboxMessage{
@@ -181,19 +177,19 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 
 		if err := c.inboxRepo.Insert(ctx, inboxMsg); err != nil {
 			slog.Error("Failed to save message to inbox", "error", err, "order_id", ord.ID)
-			// Don't acknowledge - let RabbitMQ requeue
 			if err := msg.Nack(false, true); err != nil {
 				slog.Error("Failed to nack message", "error", err)
 			}
+
 			return fmt.Errorf("failed to save to inbox: %w", err)
 		}
 
 		slog.Info("Message saved to inbox for retry", "order_id", ord.ID, "message_id", messageID)
 	}
 
-	// Acknowledge the message (either processed successfully or saved to inbox)
 	if err := msg.Ack(false); err != nil {
 		slog.Error("Failed to ack message", "error", err)
+
 		return err
 	}
 
@@ -207,6 +203,7 @@ func (c *Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error 
 // generateMessageID generates a unique message ID based on message content.
 func (c *Consumer) generateMessageID(payload []byte) string {
 	hash := sha256.Sum256(payload)
+
 	return hex.EncodeToString(hash[:])
 }
 

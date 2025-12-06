@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
@@ -42,8 +43,8 @@ func (r *Client) Close() error {
 func MustNewClient() *Client {
 	host := viper.GetString("rabbitmq.host")
 	port := viper.GetInt("rabbitmq.port")
-	user := viper.GetString("rabbitmq.user")
-	password := viper.GetString("rabbitmq.password")
+	user := os.Getenv("RABBITMQ_DEFAULT_USER")
+	password := os.Getenv("RABBITMQ_DEFAULT_PASS")
 
 	if host == "" {
 		host = "rabbitmq"
